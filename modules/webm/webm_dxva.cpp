@@ -227,8 +227,11 @@ struct WebmDXVA::WebmDXVAImpl {
 		return true;
 	}
 
-	bool decode_frame(const void *p_picture_parameters, UINT p_picture_parameters_size, UINT p_output_view_index) {
+	bool decode_frame(const void *p_picture_parameters, UINT p_picture_parameters_size, const uint8_t *p_bitstream, UINT p_bitstream_size, UINT p_output_view_index) {
 		HRESULT hr;
+
+        // DXVA2 requires bitstreams to be zero-padded to a multiple of 128 bytes.
+		const UINT bitstream_padding_size = round_up_to_nearest(p_bitstream_size, 128) - p_bitstream_size;
 
 		hr = m_video_context->DecoderBeginFrame(
             m_video_decoder.Get(),
@@ -279,7 +282,119 @@ struct WebmDXVA::WebmDXVAImpl {
 			return false;
 		}
 
-        hr = m_video_context->DecoderEndFrame(
+		DXVA_Slice_VPx_Short slice = {};
+		slice.BSNALunitDataLocation = 0; // The frame is at the beginning of the bitstream buffer.
+		slice.SliceBytesInBuffer = p_bitstream_size + bitstream_padding_size;
+		slice.wBadSliceChopping = 0; // Don't split the frame across multiple buffers.
+
+		UINT bitstream_buffer_size = 0;
+		void *bitstream_buffer = nullptr;
+
+		hr = m_video_context->GetDecoderBuffer(
+            m_video_decoder.Get(),
+            D3D11_VIDEO_DECODER_BUFFER_BITSTREAM,
+            &bitstream_buffer_size,
+            &bitstream_buffer
+        );
+        if (FAILED(hr)) {
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+		if (bitstream_buffer_size < p_bitstream_size + bitstream_padding_size) {
+			m_video_context->ReleaseDecoderBuffer(
+                m_video_decoder.Get(),
+                D3D11_VIDEO_DECODER_BUFFER_BITSTREAM
+			);
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+
+		memcpy(bitstream_buffer, p_bitstream, p_bitstream_size);
+
+        // Zero-out the padding bytes.
+		memset(static_cast<uint8_t *>(bitstream_buffer) + p_bitstream_size, 0, bitstream_padding_size);
+
+		hr = m_video_context->ReleaseDecoderBuffer(
+            m_video_decoder.Get(),
+            D3D11_VIDEO_DECODER_BUFFER_BITSTREAM
+        );
+        if (FAILED(hr)) {
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+
+		UINT slice_buffer_size = 0;
+		void *slice_buffer = nullptr;
+
+		hr = m_video_context->GetDecoderBuffer(
+			m_video_decoder.Get(),
+            D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL,
+            &slice_buffer_size,
+            &slice_buffer
+		);
+        if (FAILED(hr)) {
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+		if (slice_buffer_size < sizeof(slice)) {
+			m_video_context->ReleaseDecoderBuffer(
+                m_video_decoder.Get(),
+                D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL
+			);
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+
+		memcpy(slice_buffer, &slice, sizeof(slice));
+
+		hr = m_video_context->ReleaseDecoderBuffer(
+            m_video_decoder.Get(),
+            D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL
+        );
+        if (FAILED(hr)) {
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+
+		D3D11_VIDEO_DECODER_BUFFER_DESC buffers[3] = {};
+
+		buffers[0] = {};
+		buffers[0].BufferType = D3D11_VIDEO_DECODER_BUFFER_PICTURE_PARAMETERS;
+		buffers[0].DataSize = p_picture_parameters_size;
+
+		buffers[1] = {};
+		buffers[1].BufferType = D3D11_VIDEO_DECODER_BUFFER_BITSTREAM;
+		buffers[1].DataSize = p_bitstream_size + bitstream_padding_size;
+
+		buffers[2] = {};
+		buffers[2].BufferType = D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL;
+		buffers[2].DataSize = sizeof(slice);
+
+		hr = m_video_context->SubmitDecoderBuffers(
+			m_video_decoder.Get(),
+            3,
+            buffers
+		);
+        if (FAILED(hr)) {
+            m_video_context->DecoderEndFrame(
+                m_video_decoder.Get()
+            );
+			return false;
+		}
+
+		hr = m_video_context->DecoderEndFrame(
             m_video_decoder.Get()
         );
         if (FAILED(hr)) {
@@ -287,6 +402,17 @@ struct WebmDXVA::WebmDXVAImpl {
 		}
 
 		return true;
+	}
+
+    static constexpr UINT round_up_to_nearest(UINT value, UINT step) {
+		if (step == 0) {
+			return value;
+		}
+		UINT remainder = value % step;
+		if (remainder == 0) {
+			return value;
+		}
+		return value + step - remainder;
 	}
 };
 
@@ -314,11 +440,12 @@ bool WebmDXVA::setup_vp9(unsigned int p_width, unsigned int p_height) {
 	return true;
 }
 
-bool WebmDXVA::decode_frame_vp9() {
-	DXVA_PicParams_VP9 picture_parameters = {};
-	// TODO: Configure picture_parameters
+bool WebmDXVA::decode_frame_vp9(const uint8_t *p_bitstream, unsigned int p_bitstream_size) {
+	const UINT output_view_index = 0;
 
-	if (!impl->decode_frame(&picture_parameters, sizeof(picture_parameters), 0)) {
+	DXVA_PicParams_VP9 picture_parameters = {}; // TODO: What do I put in here?
+
+	if (!impl->decode_frame(&picture_parameters, sizeof(picture_parameters), p_bitstream, p_bitstream_size, output_view_index)) {
 		return false;
 	}
 
