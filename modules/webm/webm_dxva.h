@@ -37,9 +37,6 @@ class WebmDXVA {
 	Ref<WebmDXVAImpl> impl;
 
 public:
-	bool create_video_device();
-	bool is_vp8_supported();
-	bool is_vp9_supported();
-	bool create_vp8_decoder(unsigned int p_width, unsigned int p_height);
-	bool create_vp9_decoder(unsigned int p_width, unsigned int p_height);
+	bool setup_vp9(unsigned int p_width, unsigned int p_height);
+	bool decode_frame_vp9();
 };
