@@ -30,7 +30,7 @@
 
 #pragma once
 
-#include "webm_dxva.h"
+#include "dxva/webm_dxva.h"
 
 #include "core/io/resource_loader.h"
 #include "scene/resources/image_texture.h"

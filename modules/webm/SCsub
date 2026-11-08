@@ -20,8 +20,10 @@ env_webm.Prepend(
     CPPPATH=[
         "#thirdparty/libsimplewebm/",
         "#thirdparty/libsimplewebm/include/",
-        "#thirdparty/libsimplewebm/libwebm/webm_parser",
-        "#thirdparty/libsimplewebm/libwebm/webm_parser/include",
+        "#thirdparty/libsimplewebm/libwebm/",
+        "#thirdparty/libsimplewebm/libwebm/common/",
+        "#thirdparty/libsimplewebm/libwebm/webm_parser/",
+        "#thirdparty/libsimplewebm/libwebm/webm_parser/include/",
     ]
 )
 
@@ -46,6 +48,7 @@ thirdparty_sources = [
     "decoder/VorbisDecoder.cpp",
     "decoder/VPXDecoder.cpp",
     "demuxer/WebMDemuxer.cpp",
+    "libwebm/common/vp9_header_parser.cc",
     "libwebm/webm_parser/src/ancestory.cc",  # codespell:ignore ancestory
     "libwebm/webm_parser/src/bit_utils.cc",
     "libwebm/webm_parser/src/block_header_parser.cc",

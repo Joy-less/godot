@@ -440,10 +440,65 @@ bool WebmDXVA::setup_vp9(unsigned int p_width, unsigned int p_height) {
 	return true;
 }
 
-bool WebmDXVA::decode_frame_vp9(const uint8_t *p_bitstream, unsigned int p_bitstream_size) {
+bool WebmDXVA::decode_frame_vp9(const vp9_parser::Vp9HeaderParser &vp9_header_parser) {
 	const UINT output_view_index = 0;
 
-	DXVA_PicParams_VP9 picture_parameters = {}; // TODO: What do I put in here?
+	DXVA_PicParams_VP9 picture_parameters = {};
+
+	picture_parameters.CurrPic.Index7Bits = output_view_index;
+	picture_parameters.CurrPic.AssociatedFlag = 0; // TODO: ???
+	picture_parameters.profile = vp9_header_parser.profile();
+	picture_parameters.frame_type = vp9_header_parser.key();
+	picture_parameters.show_frame = 0; // TODO: ???
+	picture_parameters.error_resilient_mode = vp9_header_parser.error_resilient_mode();
+	picture_parameters.subsampling_x = vp9_header_parser.subsampling_x_;
+	picture_parameters.subsampling_y = vp9_header_parser.subsampling_y_;
+	picture_parameters.extra_plane = 0; // TODO: ???
+	picture_parameters.refresh_frame_context = vp9_header_parser.refresh_frame_flags();
+	picture_parameters.frame_parallel_decoding_mode = vp9_header_parser.frame_parallel_mode();
+	picture_parameters.intra_only = vp9_header_parser.intra_only_;
+	picture_parameters.frame_context_idx = 0; // TODO: ???
+	picture_parameters.reset_frame_context = vp9_header_parser.reset_frame_context_;
+	picture_parameters.allow_high_precision_mv = 0; // TODO: ???
+	picture_parameters.ReservedFormatInfo2Bits = 0;
+	picture_parameters.width = vp9_header_parser.width();
+	picture_parameters.height = vp9_header_parser.height();
+	picture_parameters.BitDepthMinus8Luma = 0; // 8-bit. TODO: ???
+	picture_parameters.BitDepthMinus8Chroma = 0; // 8-bit. TODO: ???
+	picture_parameters.interp_filter = 0; // TODO: ???
+	picture_parameters.Reserved8Bits = 0;
+	picture_parameters.ref_frame_map = {}; // TODO: ???
+	picture_parameters.ref_frame_coded_width = {}; // TODO: ???
+	picture_parameters.ref_frame_coded_height = {}; // TODO: ???
+	picture_parameters.frame_refs = {}; // TODO: ???
+	picture_parameters.ref_frame_sign_bias = {}; // TODO: ???
+	picture_parameters.filter_level = 0; // TODO: ???
+	picture_parameters.sharpness_level = 0; // TODO: ???
+	picture_parameters.mode_ref_delta_enabled = 0; // TODO: ???
+	picture_parameters.mode_ref_delta_update = 0; // TODO: ???
+	picture_parameters.use_prev_in_find_mv_refs = 0; // TODO: ???
+	picture_parameters.ReservedControlInfo5Bits = 0;
+	picture_parameters.ref_deltas = {}; // TODO: ???
+	picture_parameters.base_qindex = 0; // TODO: ???
+	picture_parameters.y_dc_delta_q = 0; // TODO: ???
+	picture_parameters.uv_dc_delta_q = 0; // TODO: ???
+	picture_parameters.uv_ac_delta_q = 0; // TODO: ???
+	picture_parameters.stVP9Segments.enabled = 0; // TODO: ???
+	picture_parameters.stVP9Segments.update_map = 0; // TODO: ???
+	picture_parameters.stVP9Segments.temporal_update = 0; // TODO: ???
+	picture_parameters.stVP9Segments.abs_delta = 0; // TODO: ???
+	picture_parameters.stVP9Segments.ReservedSegmentFlags4Bits = 0;
+	picture_parameters.stVP9Segments.tree_probs = {}; // TODO: ???
+	picture_parameters.stVP9Segments.pred_probs = {}; // TODO: ???
+	picture_parameters.stVP9Segments.feature_data = {}; // TODO: ???
+	picture_parameters.stVP9Segments.feature_mask = {}; // TODO: ???
+	picture_parameters.log2_tile_cols = 0; // TODO: ???
+	picture_parameters.log2_tile_rows = 0; // TODO: ???
+	picture_parameters.uncompressed_header_size_byte_aligned = vp9_header_parser.frame_size();
+	picture_parameters.first_partition_size = 0; // TODO: ???
+	picture_parameters.Reserved16Bits = 0;
+	picture_parameters.Reserved32Bits = 0;
+	picture_parameters.StatusReportFeedbackNumber = 0; // TODO: ???
 
 	if (!impl->decode_frame(&picture_parameters, sizeof(picture_parameters), p_bitstream, p_bitstream_size, output_view_index)) {
 		return false;
