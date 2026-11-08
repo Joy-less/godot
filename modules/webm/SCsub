@@ -21,7 +21,6 @@ env_webm.Prepend(
         "#thirdparty/libsimplewebm/",
         "#thirdparty/libsimplewebm/include/",
         "#thirdparty/libsimplewebm/libwebm/",
-        "#thirdparty/libsimplewebm/libwebm/common/",
         "#thirdparty/libsimplewebm/libwebm/webm_parser/",
         "#thirdparty/libsimplewebm/libwebm/webm_parser/include/",
     ]
