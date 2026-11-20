@@ -38,5 +38,5 @@ class WebmDXVA {
 
 public:
 	bool setup_vp9(unsigned int p_width, unsigned int p_height);
-	bool decode_frame_vp9(const uint8_t *p_bitstream, unsigned int p_bitstream_size);
+	bool decode_frame_vp9(const std::vector<uint8_t> p_bitstream);
 };

@@ -32,6 +32,8 @@
 
 #include "core/object/ref_counted.h"
 
+#include <decoder/hardware/VP9FrameParser.h>
+
 #include <d3d11.h>
 #include <dxva.h>
 #include <wrl/client.h>
@@ -443,61 +445,61 @@ bool WebmDXVA::setup_vp9(unsigned int p_width, unsigned int p_height) {
 bool WebmDXVA::decode_frame_vp9(const uint8_t *p_bitstream, unsigned int p_bitstream_size) {
 	const UINT output_view_index = 0;
 
-	// BufferPool *buffer_pool = (BufferPool *)vpx_calloc(1, sizeof(BufferPool));
-	// VP9Decoder *vp9_decoder = vp9_decoder_create(buffer_pool);
-	// vp9_decode_frame(vp9_decoder, p_bitstream, p_bitstream + p_bitstream_size, p_bitstream);
+	//VP9FrameParser::VP9Parser vp9_parser = {};
+	//VP9FrameParser::VP9Parser::parsePacket();
+	VP9FrameParser::VP9Frame frame = {};
 
 	DXVA_PicParams_VP9 picture_parameters = {};
 	picture_parameters.CurrPic.Index7Bits = output_view_index;
 	picture_parameters.CurrPic.AssociatedFlag = 0; // TODO: ???
-	picture_parameters.profile = vp9_decoder->common.profile;
-	picture_parameters.frame_type = vp9_decoder->common.frame_type;
-	picture_parameters.show_frame = vp9_decoder->common.show_frame;
-	picture_parameters.error_resilient_mode = vp9_decoder->common.error_resilient_mode;
-	picture_parameters.subsampling_x = vp9_decoder->common.subsampling_x;
-	picture_parameters.subsampling_y = vp9_decoder->common.subsampling_y;
+	picture_parameters.profile = frame.profile;
+	picture_parameters.frame_type = frame.frameType;
+	picture_parameters.show_frame = frame.showFrame;
+	picture_parameters.error_resilient_mode = frame.errorResilientMode;
+	picture_parameters.subsampling_x = frame.subsamplingX;
+	picture_parameters.subsampling_y = frame.subsamplingY;
 	picture_parameters.extra_plane = 0; // TODO: ???
-	picture_parameters.refresh_frame_context = vp9_decoder->common.refresh_frame_context;
-	picture_parameters.frame_parallel_decoding_mode = vp9_decoder->common.frame_parallel_decoding_mode;
-	picture_parameters.intra_only = vp9_decoder->common.intra_only;
-	picture_parameters.frame_context_idx = vp9_decoder->common.frame_context_idx;
-	picture_parameters.reset_frame_context = vp9_decoder->common.reset_frame_context;
-	picture_parameters.allow_high_precision_mv = vp9_decoder->common.allow_high_precision_mv;
+	picture_parameters.refresh_frame_context = frame.refreshFrameContext;
+	picture_parameters.frame_parallel_decoding_mode = frame.frameParallelDecodingMode;
+	picture_parameters.intra_only = frame.intraOnly;
+	picture_parameters.frame_context_idx = frame.frameContextIdx;
+	picture_parameters.reset_frame_context = frame.resetFrameContext;
+	picture_parameters.allow_high_precision_mv = frame.allowHighPrecisionMv;
 	picture_parameters.ReservedFormatInfo2Bits = 0;
-	picture_parameters.width = vp9_decoder->common.width;
-	picture_parameters.height = vp9_decoder->common.height;
+	picture_parameters.width = frame.width;
+	picture_parameters.height = frame.height;
 	picture_parameters.BitDepthMinus8Luma = 0; // 8-bit. TODO: ???
 	picture_parameters.BitDepthMinus8Chroma = 0; // 8-bit. TODO: ???
-	picture_parameters.interp_filter = vp9_decoder->common.interp_filter;
+	picture_parameters.interp_filter = frame.interpolationFilter;
 	picture_parameters.Reserved8Bits = 0;
 	picture_parameters.ref_frame_map = {}; // TODO: set to indices for DXVA surfaces
 	picture_parameters.ref_frame_coded_width = {}; // TODO: ???
 	picture_parameters.ref_frame_coded_height = {}; // TODO: ???
 	picture_parameters.frame_refs = {}; // TODO: set to identifiers for DXVA surfaces
-	picture_parameters.ref_frame_sign_bias = vp9_decoder->common.ref_frame_sign_bias;
-	picture_parameters.filter_level = vp9_decoder->common.lf.filter_level;
-	picture_parameters.sharpness_level = vp9_decoder->common.lf.sharpness_level;
-	picture_parameters.mode_ref_delta_enabled = vp9_decoder->common.lf.mode_ref_delta_enabled;
-	picture_parameters.mode_ref_delta_update = vp9_decoder->common.lf.mode_ref_delta_update;
-	picture_parameters.use_prev_in_find_mv_refs = vp9_decoder->common.use_prev_frame_mvs;
+	picture_parameters.ref_frame_sign_bias = frame.refFrameSignBias;
+	picture_parameters.filter_level = frame.loopFilterLevel;
+	picture_parameters.sharpness_level = frame.loopFilterSharpness;
+	picture_parameters.mode_ref_delta_enabled = frame.loopFilterDeltaEnabled;
+	picture_parameters.mode_ref_delta_update = frame.loopFilterUpdateRefDelta;
+	picture_parameters.use_prev_in_find_mv_refs = 0; // TODO: ???
 	picture_parameters.ReservedControlInfo5Bits = 0;
-	picture_parameters.ref_deltas = vp9_decoder->common.lf.ref_deltas;
-	picture_parameters.base_qindex = vp9_decoder->common.base_qindex;
-	picture_parameters.y_dc_delta_q = vp9_decoder->common.y_dc_delta_q;
-	picture_parameters.uv_dc_delta_q = vp9_decoder->common.uv_dc_delta_q;
-	picture_parameters.uv_ac_delta_q = vp9_decoder->common.uv_ac_delta_q;
-	picture_parameters.stVP9Segments.enabled = vp9_decoder->common.seg.enabled;
-	picture_parameters.stVP9Segments.update_map = vp9_decoder->common.seg.update_map;
-	picture_parameters.stVP9Segments.temporal_update = vp9_decoder->common.seg.temporal_update;
-	picture_parameters.stVP9Segments.abs_delta = vp9_decoder->common.seg.abs_delta;
+	picture_parameters.ref_deltas = frame.loopFilterRefDeltas;
+	picture_parameters.base_qindex = frame.baseQIdx;
+	picture_parameters.y_dc_delta_q = frame.deltaQYDc;
+	picture_parameters.uv_dc_delta_q = frame.deltaQUvDc;
+	picture_parameters.uv_ac_delta_q = frame.deltaQUvAc;
+	picture_parameters.stVP9Segments.enabled = frame.segmentationEnabled;
+	picture_parameters.stVP9Segments.update_map = frame.segmentationUpdateMap;
+	picture_parameters.stVP9Segments.temporal_update = frame.segmentationTemporalUpdate;
+	picture_parameters.stVP9Segments.abs_delta = frame.segmentationAbsOrDeltaUpdate;
 	picture_parameters.stVP9Segments.ReservedSegmentFlags4Bits = 0;
-	picture_parameters.stVP9Segments.tree_probs = vp9_decoder->common.seg.tree_probs;
-	picture_parameters.stVP9Segments.pred_probs = vp9_decoder->common.seg.pred_probs;
-	picture_parameters.stVP9Segments.feature_data = vp9_decoder->common.seg.feature_data;
-	picture_parameters.stVP9Segments.feature_mask = vp9_decoder->common.seg.feature_mask;
-	picture_parameters.log2_tile_cols = vp9_decoder->common.log2_tile_cols;
-	picture_parameters.log2_tile_rows = vp9_decoder->common.log2_tile_rows;
-	picture_parameters.uncompressed_header_size_byte_aligned = 0; // TODO: ???
+	picture_parameters.stVP9Segments.tree_probs = frame.segmentTreeProbs;
+	picture_parameters.stVP9Segments.pred_probs = frame.segmentPredProbs;
+	picture_parameters.stVP9Segments.feature_data = frame.segmentFeatureData;
+	picture_parameters.stVP9Segments.feature_mask = {}; // TODO: ???
+	picture_parameters.log2_tile_cols = frame.tileColsLog2;
+	picture_parameters.log2_tile_rows = frame.tileRowsLog2;
+	picture_parameters.uncompressed_header_size_byte_aligned = frame.uncompressedHeaderSize;
 	picture_parameters.first_partition_size = 0; // TODO: ???
 	picture_parameters.Reserved16Bits = 0;
 	picture_parameters.Reserved32Bits = 0;
