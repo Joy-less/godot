@@ -40,6 +40,7 @@ public:
 
     bool setupVP9(unsigned int width, unsigned int height);
     bool decodeVP9(const uint8_t *bitstream, size_t bitstreamSize);
+	bool stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane);
 };
 
 class VP9DXVADecoder
@@ -62,39 +63,30 @@ public:
 
         unsigned char *planes[3];
         int linesize[3];
-
-        unsigned char *alpha;
-        int alphaLinesize;
     };
 
-    enum IMAGE_ERROR
-    {
-        UNSUPPORTED_FRAME = -1,
-        NO_ERROR,
-        NO_FRAME
-    };
+	enum IMAGE_ERROR
+	{
+        IMAGE_ERROR_OK,
+        IMAGE_ERROR_NO_FRAME,
+        IMAGE_ERROR_UNSUPPORTED_FRAME
+	};
 
     VP9DXVADecoder(const WebMDemuxer &demuxer);
     ~VP9DXVADecoder();
 
-    inline bool isOpen() const
-    {
-        return (bool)m_ctx;
-    }
+	IMAGE_ERROR decode(const WebMFrame &frame);
 
-    inline bool hasAlpha() const
-    {
-        return (bool)m_alphaCtx;
-    }
+	IMAGE_ERROR getImage(Image &image);
 
-    bool decode(const WebMFrame &frame);
-
-    IMAGE_ERROR getImage(Image &image);
-
-    bool reset();
+	void reset();
 
 private:
-    VP9DXVAHelper vp9DXVAHelper;
+	VP9DXVAHelper vp9DXVAHelper = VP9DXVAHelper();
+
+	std::vector<uint8_t> yPlane = {};
+	std::vector<uint8_t> uPlane = {};
+	std::vector<uint8_t> vPlane = {};
 };
 
 #endif // VP9_DXVA_DECODER_H

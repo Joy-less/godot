@@ -45,9 +45,10 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         UINT surfaceIndex = INVALID_SURFACE_INDEX;
         UINT width = 0;
         UINT height = 0;
-    };
+		VP9FrameParser::COLOR_SPACE colorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
+	};
 
-    ComPtr<ID3D11Device> device = nullptr;
+	ComPtr<ID3D11Device> device = nullptr;
     ComPtr<ID3D11DeviceContext> context = nullptr;
     ComPtr<ID3D11VideoDevice> videoDevice = nullptr;
     ComPtr<ID3D11VideoContext> videoContext = nullptr;
@@ -71,6 +72,7 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
     UINT statusReportFeedbackNumber = 0;
     UINT lastFrameWidth = 0;
     UINT lastFrameHeight = 0;
+    VP9FrameParser::COLOR_SPACE lastFrameColorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
     bool lastShowFrame = false;
     UINT lastOutputViewIndex = VP9RefFrame::INVALID_SURFACE_INDEX;
 
@@ -510,7 +512,8 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         return true;
     }
 
-	bool stageFrame(UINT outputViewIndex, DXGI_FORMAT format, UINT width, UINT height, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane) {
+	bool stageFrame(UINT outputViewIndex, DXGI_FORMAT format, UINT width, UINT height, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
+    {
 		HRESULT hr;
 
         // Copy the texture from the GPU to the CPU.
@@ -667,9 +670,13 @@ bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
                 return false;
             }
 
-            impl->lastOutputViewIndex = refFrame.surfaceIndex;
+			impl->lastFrameWidth = refFrame.width;
+			impl->lastFrameHeight = refFrame.height;
+			impl->lastFrameColorSpace = refFrame.colorSpace;
+			impl->lastShowFrame = true;
+			impl->lastOutputViewIndex = refFrame.surfaceIndex;
 
-            continue;
+			continue;
         }
 
         UINT outputViewIndex;
@@ -797,19 +804,49 @@ bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
                 impl->refFrames[i].surfaceIndex = outputViewIndex;
                 impl->refFrames[i].width = frame.width;
                 impl->refFrames[i].height = frame.height;
-            }
-        }
+				impl->refFrames[i].colorSpace = frame.colorSpace;
+			}
+		}
 
         impl->lastFrameWidth = frame.width;
         impl->lastFrameHeight = frame.height;
-        impl->lastShowFrame = frame.showFrame;
-        if (frame.showFrame)
+		impl->lastFrameColorSpace = frame.colorSpace;
+		impl->lastShowFrame = frame.showFrame;
+		if (frame.showFrame)
         {
             impl->lastOutputViewIndex = outputViewIndex;
         }
     }
 
     return true;
+}
+
+bool VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
+{
+    const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
+
+	if (!impl->stageFrame(impl->lastOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
+    {
+		return false;
+	}
+
+	image.w = impl->lastFrameWidth;
+	image.h = impl->lastFrameHeight;
+	image.cs = impl->lastFrameColorSpace;
+
+	image.chromaShiftW = 1; // NV12 format.
+	image.chromaShiftH = 1; // NV12 format.
+	image.bitDepth = 8; // NV12 format.
+
+	image.planes[0] = yPlane.data();
+	image.planes[1] = uPlane.data();
+	image.planes[2] = vPlane.data();
+
+	image.linesize[0] = image.w; // NV12 format.
+	image.linesize[1] = (image.w + 1) / 2; // NV12 format.
+	image.linesize[2] = (image.w + 1) / 2; // NV12 format.
+
+	return true;
 }
 
 VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer)
@@ -838,95 +875,29 @@ VP9DXVADecoder::~VP9DXVADecoder()
     vp9DXVAHelper = VP9DXVAHelper();
 }
 
-bool VP9DXVADecoder::decode(const WebMFrame &frame)
+VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
 {
     if (!frame.isValid())
     {
-        return false;
+        return IMAGE_ERROR_NO_FRAME;
     }
 
     if (!vp9DXVAHelper.decodeVP9(frame.buffer, frame.bufferSize))
     {
-		return false;
+		return IMAGE_ERROR_UNSUPPORTED_FRAME;
     }
 
-    return true;
+    return IMAGE_ERROR_OK;
 }
 
 VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::getImage(Image &image)
 {
-    IMAGE_ERROR err = NO_FRAME;
-
-    vpx_image_t *img = NULL;
-    vpx_image_t *alphaImg = NULL;
-
-    if (m_ctx)
-        img = vpx_codec_get_frame(m_ctx, &m_iter);
-
-    if (m_alphaCtx)
-        alphaImg = vpx_codec_get_frame(m_alphaCtx, &m_alphaIter);
-
-    if (!img)
-        return NO_FRAME;
-
-
-    // The alpha decoder returns an ordinary I420 image.
-    // Its Y plane is the actual alpha plane.
-
-    if (alphaImg)
+    if (!vp9DXVAHelper.stageVP9(image, yPlane, uPlane, vPlane))
     {
-        if (img->d_w != alphaImg->d_w || img->d_h != alphaImg->d_h)
-        {
-            return UNSUPPORTED_FRAME;
-        }
-    }
+		return IMAGE_ERROR_UNSUPPORTED_FRAME;
+	}
 
-    if (img->cs != VPX_CS_UNKNOWN)
-        m_last_space = img->cs;
-
-    if (img->fmt & VPX_IMG_FMT_PLANAR)
-    {
-        if (img->stride[0] && img->stride[1] && img->stride[2])
-        {
-            const int uPlane = !!(img->fmt & VPX_IMG_FMT_UV_FLIP) + 1;
-
-            const int vPlane = !(img->fmt & VPX_IMG_FMT_UV_FLIP) + 1;
-
-            image.w = img->d_w;
-            image.h = img->d_h;
-            image.cs = m_last_space;
-            image.chromaShiftW = img->x_chroma_shift;
-            image.chromaShiftH = img->y_chroma_shift;
-            image.bitDepth = img->bit_depth;
-
-            image.planes[0] = img->planes[0];
-            image.planes[1] = img->planes[uPlane];
-            image.planes[2] = img->planes[vPlane];
-
-            image.linesize[0] = img->stride[0];
-            image.linesize[1] = img->stride[uPlane];
-            image.linesize[2] = img->stride[vPlane];
-
-            if (alphaImg && alphaImg->planes[VPX_PLANE_Y] && alphaImg->stride[VPX_PLANE_Y])
-            {
-                image.alpha = alphaImg->planes[VPX_PLANE_Y];
-                image.alphaLinesize = alphaImg->stride[VPX_PLANE_Y];
-            }
-            else
-            {
-                image.alpha = NULL;
-                image.alphaLinesize = 0;
-            }
-
-            err = NO_ERROR;
-        }
-    }
-    else
-    {
-        err = UNSUPPORTED_FRAME;
-    }
-
-    return err;
+	return IMAGE_ERROR_OK;
 }
 
 static inline int ceilRshift(int val, int shift)
@@ -934,7 +905,6 @@ static inline int ceilRshift(int val, int shift)
     return (val + (1 << shift) - 1) >> shift;
 }
 
-// 0 = Y, 1 = U, 2 = V, 3 = alpha.
 int VP9DXVADecoder::Image::getWidth(int plane) const
 {
     if (plane == 0 || plane == 3)
@@ -951,40 +921,11 @@ int VP9DXVADecoder::Image::getHeight(int plane) const
     return ceilRshift(h, chromaShiftH);
 }
 
-bool VP9DXVADecoder::reset()
+void VP9DXVADecoder::reset()
 {
-    if (!m_ctx || !m_codecIface)
-        return false;
+	yPlane.clear();
+	uPlane.clear();
+	vPlane.clear();
 
-    if (m_alphaCtx)
-    {
-        vpx_codec_destroy(m_alphaCtx);
-        delete m_alphaCtx;
-        m_alphaCtx = NULL;
-    }
-
-    vpx_codec_destroy(m_ctx);
-    delete m_ctx;
-    m_ctx = NULL;
-
-    const vpx_codec_dec_cfg_t codecCfg = {
-        m_threads,
-        0,
-        0
-    };
-
-    m_ctx = new vpx_codec_ctx_t;
-
-    if (vpx_codec_dec_init(m_ctx, m_codecIface, &codecCfg, 0))
-    {
-        delete m_ctx;
-        m_ctx = NULL;
-        return false;
-    }
-
-    m_iter = NULL;
-    m_alphaIter = NULL;
-    m_last_space = VPX_CS_UNKNOWN;
-
-    return true;
+	vp9DXVAHelper = VP9DXVAHelper();
 }
