@@ -28,15 +28,13 @@
 
 #include <decoder/hardware/VP9FrameParser.h>
 
-#include <cstring>
-
 #include <d3d11.h>
 #include <dxva.h>
 #include <wrl/client.h>
 
 using Microsoft::WRL::ComPtr;
 
-struct VP9DXVAHelper::VP9DXVAHelperImpl
+struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
 {
     struct VP9RefFrame
     {
@@ -617,12 +615,12 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
     }
 };
 
-VP9DXVAHelper::VP9DXVAHelper() :
+VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelper() :
     impl(std::make_unique<VP9DXVAHelperImpl>())
 {
 }
 
-bool VP9DXVAHelper::setupVP9(unsigned int width, unsigned int height)
+bool VP9DXVADecoder::VP9DXVAHelper::setupVP9(unsigned int width, unsigned int height)
 {
     const GUID profile = D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0; // VP9 8-bit.
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
@@ -651,7 +649,7 @@ bool VP9DXVAHelper::setupVP9(unsigned int width, unsigned int height)
     return true;
 }
 
-bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
+bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
 {
     VP9FrameParser::Result<std::vector<VP9FrameParser::VP9Frame>> parsePacketResult = impl->parser.parsePacket({ bitstream, bitstreamSize });
     if (parsePacketResult.error)
@@ -821,7 +819,7 @@ bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
     return true;
 }
 
-bool VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
+bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
 {
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
 

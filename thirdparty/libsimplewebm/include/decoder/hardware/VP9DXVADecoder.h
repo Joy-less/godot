@@ -29,24 +29,26 @@
 
 #include "include/demuxer/WebMDemuxer.h"
 
-struct VP9DXVAHelper
-{
-private:
-    struct VP9DXVAHelperImpl;
-    std::unique_ptr<VP9DXVAHelperImpl> impl;
-
-public:
-    VP9DXVAHelper();
-
-    bool setupVP9(unsigned int width, unsigned int height);
-    bool decodeVP9(const uint8_t *bitstream, size_t bitstreamSize);
-    bool stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane);
-};
-
 class VP9DXVADecoder
 {
     VP9DXVADecoder(const VP9DXVADecoder &);
     void operator =(const VP9DXVADecoder &);
+
+	class Image;
+
+	struct VP9DXVAHelper
+    {
+    private:
+        struct VP9DXVAHelperImpl;
+        std::unique_ptr<VP9DXVAHelperImpl> impl;
+
+    public:
+        VP9DXVAHelper();
+
+        bool setupVP9(unsigned int width, unsigned int height);
+        bool decodeVP9(const uint8_t *bitstream, size_t bitstreamSize);
+        bool stageVP9(Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane);
+    };
 
 public:
     class Image

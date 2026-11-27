@@ -46,7 +46,8 @@ thirdparty_sources = [
     "decoder/OpusDecoder.cpp",
     "decoder/VorbisDecoder.cpp",
     "decoder/VPXDecoder.cpp",
-    "decoder/hardware/VP9FrameHeaderParser.cpp",
+    "decoder/hardware/VP9DXVADecoder.cpp",
+    "decoder/hardware/VP9FrameParser.cpp",
     "demuxer/WebMDemuxer.cpp",
     "libwebm/webm_parser/src/ancestory.cc",  # codespell:ignore ancestory
     "libwebm/webm_parser/src/bit_utils.cc",
