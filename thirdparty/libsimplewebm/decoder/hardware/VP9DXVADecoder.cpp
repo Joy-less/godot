@@ -53,9 +53,10 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
     ComPtr<ID3D11VideoContext> videoContext = nullptr;
     ComPtr<ID3D11VideoDecoder> videoDecoder = nullptr;
     ComPtr<ID3D11Texture2D> decodeTexture = nullptr;
-    std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
+	ComPtr<ID3D11Texture2D> stagingTexture = nullptr;
+	std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
 
-    VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
+	VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
     VP9RefFrame refFrames[8] = {
         VP9RefFrame(),
         VP9RefFrame(),
@@ -226,19 +227,19 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
     {
         HRESULT hr;
 
-        D3D11_TEXTURE2D_DESC textureDesc = {};
-        textureDesc.Width = width;
-        textureDesc.Height = height;
-        textureDesc.MipLevels = 1; // Disable mipmaps.
-        textureDesc.ArraySize = outputViewsCount;
-        textureDesc.Format = format;
-        textureDesc.SampleDesc.Count = 1; // Disable MSAA (multisampling).
-        textureDesc.SampleDesc.Quality = 0; // Ignore MSAA quality level.
-        textureDesc.Usage = D3D11_USAGE_DEFAULT;
-        textureDesc.BindFlags = D3D11_BIND_DECODER;
+        D3D11_TEXTURE2D_DESC decodeTextureDesc = {};
+        decodeTextureDesc.Width = width;
+        decodeTextureDesc.Height = height;
+        decodeTextureDesc.MipLevels = 1; // Disable mipmaps.
+        decodeTextureDesc.ArraySize = outputViewsCount;
+        decodeTextureDesc.Format = format;
+        decodeTextureDesc.SampleDesc.Count = 1; // Disable MSAA (multisampling).
+        decodeTextureDesc.SampleDesc.Quality = 0; // Ignore MSAA quality level.
+        decodeTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+        decodeTextureDesc.BindFlags = D3D11_BIND_DECODER;
 
         hr = this->device->CreateTexture2D(
-            &textureDesc,
+            &decodeTextureDesc,
             nullptr,
             &this->decodeTexture
         );
@@ -270,7 +271,25 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
             this->outputViews[outputViewIndex] = outputView;
         }
 
-        return true;
+        // Create a texture to read from the GPU back to the CPU.
+		D3D11_TEXTURE2D_DESC stagingTextureDesc = {};
+		decodeTexture->GetDesc(&stagingTextureDesc); // Copy values from decodeTexture.
+		stagingTextureDesc.ArraySize = 1; // We only need to read back one of the outputViews.
+		stagingTextureDesc.Usage = D3D11_USAGE_STAGING;
+		stagingTextureDesc.BindFlags = 0;
+		stagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		stagingTextureDesc.MiscFlags = 0;
+		hr = this->device->CreateTexture2D(
+            &stagingTextureDesc,
+            nullptr,
+            &this->stagingTexture
+		);
+        if (FAILED(hr))
+        {
+			return false;
+		}
+
+		return true;
     }
 
     bool findUnusedOutputViewIndex(UINT &outputViewIndex)
@@ -491,7 +510,96 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         return true;
     }
 
-    static constexpr UINT roundUpToNearest(UINT value, UINT step)
+	bool stageFrame(UINT outputViewIndex, DXGI_FORMAT format, UINT width, UINT height, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane) {
+		HRESULT hr;
+
+        // Copy the texture from the GPU to the CPU.
+		this->context->CopySubresourceRegion(
+			stagingTexture.Get(),
+            D3D11CalcSubresource(
+                0, // Use the first mipmap level (since mipmaps are disabled).
+                0,
+                1 // There is only one mipmap level (since mipmaps are disabled).
+            ),
+            0,
+            0,
+            0,
+            decodeTexture.Get(),
+            D3D11CalcSubresource(
+                0, // Use the first mipmap level (since mipmaps are disabled).
+                outputViewIndex,
+                1 // There is only one mipmap level (since mipmaps are disabled).
+            ),
+            nullptr
+		);
+
+		D3D11_MAPPED_SUBRESOURCE mappedSubresource = {};
+
+        // Make the texture on the CPU available for use.
+        hr = this->context->Map(
+            stagingTexture.Get(),
+            0,
+            D3D11_MAP_READ,
+            0,
+            &mappedSubresource
+        );
+        if (FAILED(hr))
+        {
+			return false;
+		}
+
+        // Copy the data from each plane.
+        if (format == DXGI_FORMAT_NV12) // YUV 4:2:0 format.
+        {
+			const UINT chromaWidth = (width + 1) / 2;
+			const UINT chromaHeight = (height + 1) / 2;
+
+			const uint8_t *sourceY = static_cast<const uint8_t *>(mappedSubresource.pData);
+            const uint8_t *sourceUV = static_cast<const uint8_t *>(sourceY + (mappedSubresource.RowPitch * height));
+
+            yPlane.resize(width * height);
+			uPlane.resize(chromaWidth * chromaHeight);
+			vPlane.resize(chromaWidth * chromaHeight);
+
+			for (UINT rowIndex = 0; rowIndex < height; ++rowIndex)
+            {
+				const uint8_t *sourceYRow = sourceY + (rowIndex * mappedSubresource.RowPitch);
+				uint8_t *destinationYRow = yPlane.data() + (rowIndex * width);
+
+				memcpy(destinationYRow, sourceYRow, width);
+			}
+
+			for (UINT rowIndex = 0; rowIndex < chromaHeight; ++rowIndex)
+            {
+				const uint8_t *sourceUVRow = sourceUV + (rowIndex * mappedSubresource.RowPitch);
+				uint8_t *destinationURow = uPlane.data() + (rowIndex * chromaWidth);
+				uint8_t *destinationVRow = vPlane.data() + (rowIndex * chromaWidth);
+
+				for (UINT column = 0; column < chromaWidth; ++column)
+                {
+					destinationURow[column] = sourceUVRow[column * 2];
+					destinationVRow[column] = sourceUVRow[(column * 2) + 1];
+				}
+			}
+		}
+        else // Unsupported format.
+        {
+            this->context->Unmap(
+                stagingTexture.Get(),
+                0
+            );
+			return false;
+		}
+
+        this->context->Unmap(
+            stagingTexture.Get(),
+            0
+        );
+
+		return true;
+	}
+
+	static constexpr UINT roundUpToNearest(UINT value, UINT step)
     {
         if (step == 0)
         {
@@ -732,46 +840,14 @@ VP9DXVADecoder::~VP9DXVADecoder()
 
 bool VP9DXVADecoder::decode(const WebMFrame &frame)
 {
-    if (!m_ctx || !frame.isValid())
-        return false;
-
-    m_iter = NULL;
-    m_alphaIter = NULL;
-
-    if (vpx_codec_decode(m_ctx, frame.buffer, static_cast<unsigned int>(frame.bufferSize), NULL, 0))
+    if (!frame.isValid())
     {
         return false;
     }
 
-    // WebM alpha is stored as a second VP8/VP9 bitstream in
-    // BlockAdditional with BlockAddID 1.
-    // libvpx doesn't decode that data into VPX_PLANE_ALPHA.
-    // It needs its own decoder instance.
-
-    if (frame.hasAlpha())
+    if (!vp9DXVAHelper.decodeVP9(frame.buffer, frame.bufferSize))
     {
-        if (!m_alphaCtx)
-        {
-            const vpx_codec_dec_cfg_t alphaCodecCfg = {
-                m_threads,
-                0,
-                0
-            };
-
-            m_alphaCtx = new vpx_codec_ctx_t;
-
-            if (vpx_codec_dec_init(m_alphaCtx, m_codecIface, &alphaCodecCfg, 0))
-            {
-                delete m_alphaCtx;
-                m_alphaCtx = NULL;
-                return false;
-            }
-        }
-
-        if (vpx_codec_decode(m_alphaCtx, frame.alphaBuffer, static_cast<unsigned int>(frame.alphaBufferSize), NULL, 0))
-        {
-            return false;
-        }
+		return false;
     }
 
     return true;
