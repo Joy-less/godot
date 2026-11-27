@@ -34,9 +34,9 @@ class VP9DXVADecoder
     VP9DXVADecoder(const VP9DXVADecoder &);
     void operator =(const VP9DXVADecoder &);
 
-	class Image;
+    class Image;
 
-	struct VP9DXVAHelper
+    struct VP9DXVAHelper
     {
     private:
         struct VP9DXVAHelperImpl;

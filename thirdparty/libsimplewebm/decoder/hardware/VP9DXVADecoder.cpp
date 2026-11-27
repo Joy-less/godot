@@ -68,11 +68,16 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
     };
 
     UINT statusReportFeedbackNumber = 0;
+
     UINT lastFrameWidth = 0;
     UINT lastFrameHeight = 0;
     VP9FrameParser::COLOR_SPACE lastFrameColorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
-    bool lastShowFrame = false;
-    UINT lastOutputViewIndex = VP9RefFrame::INVALID_SURFACE_INDEX;
+    bool lastFrameIsVisible = false;
+
+    UINT lastVisibleFrameOutputViewIndex = VP9RefFrame::INVALID_SURFACE_INDEX;
+    UINT lastVisibleFrameWidth = 0;
+    UINT lastVisibleFrameHeight = 0;
+    VP9FrameParser::COLOR_SPACE lastVisibleFrameColorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
 
     bool createVideoDevice()
     {
@@ -296,7 +301,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
     {
         for (UINT i = 0; i < outputViews.size(); ++i)
         {
-            if (i == lastOutputViewIndex)
+            if (i == lastVisibleFrameOutputViewIndex)
             {
                 continue;
             }
@@ -671,8 +676,12 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
             impl->lastFrameWidth = refFrame.width;
             impl->lastFrameHeight = refFrame.height;
             impl->lastFrameColorSpace = refFrame.colorSpace;
-            impl->lastShowFrame = true;
-            impl->lastOutputViewIndex = refFrame.surfaceIndex;
+            impl->lastFrameIsVisible = true;
+
+            impl->lastVisibleFrameOutputViewIndex = refFrame.surfaceIndex;
+            impl->lastVisibleFrameWidth = refFrame.width;
+            impl->lastVisibleFrameHeight = refFrame.height;
+            impl->lastVisibleFrameColorSpace = refFrame.colorSpace;
 
             continue;
         }
@@ -755,7 +764,7 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
             && impl->lastFrameHeight == frame.height
             && !frame.errorResilientMode
             && !frame.intraOnly
-            && impl->lastShowFrame);
+            && impl->lastFrameIsVisible);
         pictureParameters.ReservedControlInfo5Bits = 0;
         memcpy(pictureParameters.ref_deltas, frame.loopFilterRefDeltas, sizeof(frame.loopFilterRefDeltas));
         memcpy(pictureParameters.mode_deltas, frame.loopFilterModeDeltas, sizeof(frame.loopFilterModeDeltas));
@@ -809,10 +818,13 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
         impl->lastFrameWidth = frame.width;
         impl->lastFrameHeight = frame.height;
         impl->lastFrameColorSpace = frame.colorSpace;
-        impl->lastShowFrame = frame.showFrame;
+        impl->lastFrameIsVisible = frame.showFrame;
         if (frame.showFrame)
         {
-            impl->lastOutputViewIndex = outputViewIndex;
+            impl->lastVisibleFrameOutputViewIndex = outputViewIndex;
+            impl->lastVisibleFrameWidth = frame.width;
+            impl->lastVisibleFrameHeight = frame.height;
+            impl->lastVisibleFrameColorSpace = frame.colorSpace;
         }
     }
 
@@ -823,14 +835,14 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::
 {
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
 
-    if (!impl->stageFrame(impl->lastOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
+    if (!impl->stageFrame(impl->lastVisibleFrameOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
     {
         return false;
     }
 
-    image.w = impl->lastFrameWidth;
-    image.h = impl->lastFrameHeight;
-    image.cs = impl->lastFrameColorSpace;
+    image.w = impl->lastVisibleFrameWidth;
+    image.h = impl->lastVisibleFrameHeight;
+    image.cs = impl->lastVisibleFrameColorSpace;
 
     image.chromaShiftW = 1; // NV12 format.
     image.chromaShiftH = 1; // NV12 format.
