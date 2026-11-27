@@ -24,7 +24,7 @@
  *    SOFTWARE.
  */
 
-#include "include/decoder/hardware/DXVADecoder.h"
+#include "include/decoder/hardware/VP9DXVADecoder.h"
 
 #include <decoder/hardware/VP9FrameParser.h>
 
@@ -36,15 +36,42 @@
 
 using Microsoft::WRL::ComPtr;
 
-struct DXVAHelper::DXVAHelperImpl
+struct VP9DXVAHelper::VP9DXVAHelperImpl
 {
+    struct VP9RefFrame
+    {
+        static constexpr UINT INVALID_SURFACE_INDEX = 0xFF;
+
+        UINT surfaceIndex = INVALID_SURFACE_INDEX;
+        UINT width = 0;
+        UINT height = 0;
+    };
+
     ComPtr<ID3D11Device> device = nullptr;
     ComPtr<ID3D11DeviceContext> context = nullptr;
     ComPtr<ID3D11VideoDevice> videoDevice = nullptr;
     ComPtr<ID3D11VideoContext> videoContext = nullptr;
     ComPtr<ID3D11VideoDecoder> videoDecoder = nullptr;
     ComPtr<ID3D11Texture2D> decodeTexture = nullptr;
-    std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews;
+    std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
+
+    VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
+    VP9RefFrame refFrames[8] = {
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+        VP9RefFrame(),
+    };
+
+    UINT statusReportFeedbackNumber = 0;
+    UINT lastFrameWidth = 0;
+    UINT lastFrameHeight = 0;
+    bool lastShowFrame = false;
+    UINT lastOutputViewIndex = VP9RefFrame::INVALID_SURFACE_INDEX;
 
     bool createVideoDevice()
     {
@@ -99,7 +126,7 @@ struct DXVAHelper::DXVAHelperImpl
 
         bool isProfileSupported = false;
         UINT profileCount = this->videoDevice->GetVideoDecoderProfileCount();
-        for (UINT profileIndex = 0; profileIndex < profileCount; profileIndex++)
+        for (UINT profileIndex = 0; profileIndex < profileCount; ++profileIndex)
         {
             GUID currentProfile;
             hr = this->videoDevice->GetVideoDecoderProfile(
@@ -161,7 +188,7 @@ struct DXVAHelper::DXVAHelperImpl
 
         bool wasConfigFound = false;
         D3D11_VIDEO_DECODER_CONFIG config = {};
-        for (UINT configIndex = 0; configIndex < configCount; configIndex++)
+        for (UINT configIndex = 0; configIndex < configCount; ++configIndex)
         {
             hr = this->videoDevice->GetVideoDecoderConfig(
                 &desc,
@@ -221,7 +248,7 @@ struct DXVAHelper::DXVAHelperImpl
         }
 
         this->outputViews.resize(outputViewsCount);
-        for (UINT outputViewIndex = 0; outputViewIndex < outputViewsCount; outputViewIndex++)
+        for (UINT outputViewIndex = 0; outputViewIndex < outputViewsCount; ++outputViewIndex)
         {
             D3D11_VIDEO_DECODER_OUTPUT_VIEW_DESC outputViewDesc = {};
             outputViewDesc.DecodeProfile = profile;
@@ -244,6 +271,34 @@ struct DXVAHelper::DXVAHelperImpl
         }
 
         return true;
+    }
+
+    bool findUnusedOutputViewIndex(UINT &outputViewIndex)
+    {
+        for (UINT i = 0; i < outputViews.size(); ++i)
+        {
+            if (i == lastOutputViewIndex)
+            {
+                continue;
+            }
+
+            bool isUsed = false;
+            for (const VP9RefFrame &refFrame : refFrames)
+            {
+                if (refFrame.surfaceIndex == i)
+                {
+                    isUsed = true;
+                    break;
+                }
+            }
+            if (!isUsed)
+            {
+                outputViewIndex = i;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     bool decodeFrame(const void *pictureParameters, UINT pictureParametersSize, const uint8_t *bitstream, UINT bitstreamSize, UINT outputViewIndex)
@@ -451,16 +506,16 @@ struct DXVAHelper::DXVAHelperImpl
     }
 };
 
-DXVAHelper::DXVAHelper() :
-    impl(std::make_unique<DXVAHelperImpl>())
+VP9DXVAHelper::VP9DXVAHelper() :
+    impl(std::make_unique<VP9DXVAHelperImpl>())
 {
 }
 
-bool DXVAHelper::setupVP9(unsigned int width, unsigned int height)
+bool VP9DXVAHelper::setupVP9(unsigned int width, unsigned int height)
 {
     const GUID profile = D3D11_DECODER_PROFILE_VP9_VLD_PROFILE0; // VP9 8-bit.
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
-    const UINT outputViewsCount = 8 + 1; // VP9 uses 8 reference slots.
+    const UINT outputViewsCount = 8 + 1; // VP9 uses 8 reference slots, and decoding the next frame requires one extra slot.
 
     if (!impl->createVideoDevice())
     {
@@ -485,104 +540,197 @@ bool DXVAHelper::setupVP9(unsigned int width, unsigned int height)
     return true;
 }
 
-bool DXVAHelper::decodeFrameVP9(const uint8_t *bitstream, unsigned int bitstreamSize)
+bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
 {
-    const UINT outputViewIndex = 0;
-
-    //VP9FrameParser::VP9Parser vp9Parser = {};
-    //VP9FrameParser::VP9Parser::parsePacket();
-    VP9FrameParser::VP9Frame frame = {};
-
-    DXVA_PicParams_VP9 pictureParameters = {};
-    pictureParameters.CurrPic.Index7Bits = outputViewIndex;
-    pictureParameters.CurrPic.AssociatedFlag = 0; // TODO: ???
-    pictureParameters.profile = frame.profile;
-    pictureParameters.frame_type = frame.frameType;
-    pictureParameters.show_frame = frame.showFrame;
-    pictureParameters.error_resilient_mode = frame.errorResilientMode;
-    pictureParameters.subsampling_x = frame.subsamplingX;
-    pictureParameters.subsampling_y = frame.subsamplingY;
-    pictureParameters.extra_plane = 0; // TODO: ???
-    pictureParameters.refresh_frame_context = frame.refreshFrameContext;
-    pictureParameters.frame_parallel_decoding_mode = frame.frameParallelDecodingMode;
-    pictureParameters.intra_only = frame.intraOnly;
-    pictureParameters.frame_context_idx = frame.frameContextIdx;
-    pictureParameters.reset_frame_context = frame.resetFrameContext;
-    pictureParameters.allow_high_precision_mv = frame.allowHighPrecisionMv;
-    pictureParameters.ReservedFormatInfo2Bits = 0;
-    pictureParameters.width = frame.width;
-    pictureParameters.height = frame.height;
-    pictureParameters.BitDepthMinus8Luma = 0; // 8-bit. TODO: ???
-    pictureParameters.BitDepthMinus8Chroma = 0; // 8-bit. TODO: ???
-    pictureParameters.interp_filter = frame.interpolationFilter;
-	pictureParameters.Reserved8Bits = 0;
-	memset(pictureParameters.ref_frame_map, 0, sizeof(pictureParameters.ref_frame_map)); // TODO: set to indices for DXVA surfaces
-	memset(pictureParameters.ref_frame_coded_width, 0, sizeof(pictureParameters.ref_frame_coded_width)); // TODO: ???
-	memset(pictureParameters.ref_frame_coded_height, 0, sizeof(pictureParameters.ref_frame_coded_height)); // TODO: ???
-	memset(pictureParameters.frame_refs, 0, sizeof(pictureParameters.frame_refs)); // TODO: set to indices for DXVA surfaces
-	memcpy(pictureParameters.ref_frame_sign_bias, frame.refFrameSignBias, sizeof(frame.refFrameSignBias));
-    pictureParameters.filter_level = frame.loopFilterLevel;
-    pictureParameters.sharpness_level = frame.loopFilterSharpness;
-    pictureParameters.mode_ref_delta_enabled = frame.loopFilterDeltaEnabled;
-    pictureParameters.mode_ref_delta_update = frame.loopFilterUpdateRefDelta;
-    pictureParameters.use_prev_in_find_mv_refs = 0; // TODO: ???
-    pictureParameters.ReservedControlInfo5Bits = 0;
-	memcpy(pictureParameters.ref_deltas, frame.loopFilterRefDeltas, sizeof(frame.loopFilterRefDeltas));
-	pictureParameters.base_qindex = frame.baseQIdx;
-    pictureParameters.y_dc_delta_q = frame.deltaQYDc;
-    pictureParameters.uv_dc_delta_q = frame.deltaQUvDc;
-    pictureParameters.uv_ac_delta_q = frame.deltaQUvAc;
-    pictureParameters.stVP9Segments.enabled = frame.segmentationEnabled;
-    pictureParameters.stVP9Segments.update_map = frame.segmentationUpdateMap;
-    pictureParameters.stVP9Segments.temporal_update = frame.segmentationTemporalUpdate;
-    pictureParameters.stVP9Segments.abs_delta = frame.segmentationAbsOrDeltaUpdate;
-    pictureParameters.stVP9Segments.ReservedSegmentFlags4Bits = 0;
-	memcpy(pictureParameters.stVP9Segments.tree_probs, frame.segmentTreeProbs, sizeof(frame.segmentTreeProbs));
-	memcpy(pictureParameters.stVP9Segments.pred_probs, frame.segmentPredProbs, sizeof(frame.segmentPredProbs));
-	memcpy(pictureParameters.stVP9Segments.feature_data, frame.segmentFeatureData, sizeof(frame.segmentFeatureData));
-	memset(pictureParameters.stVP9Segments.feature_mask, 0, sizeof(pictureParameters.stVP9Segments.feature_mask)); // TODO: ???
-	pictureParameters.log2_tile_cols = frame.tileColsLog2;
-    pictureParameters.log2_tile_rows = frame.tileRowsLog2;
-    pictureParameters.uncompressed_header_size_byte_aligned = frame.uncompressedHeaderSize;
-    pictureParameters.first_partition_size = 0; // TODO: ???
-    pictureParameters.Reserved16Bits = 0;
-    pictureParameters.Reserved32Bits = 0;
-    pictureParameters.StatusReportFeedbackNumber = 0; // TODO: ???
-
-    if (!impl->decodeFrame(&pictureParameters, sizeof(pictureParameters), bitstream, bitstreamSize, outputViewIndex)) {
+    VP9FrameParser::Result<std::vector<VP9FrameParser::VP9Frame>> parsePacketResult = impl->parser.parsePacket({ bitstream, bitstreamSize });
+    if (parsePacketResult.error)
+    {
         return false;
+    }
+
+    for (const VP9FrameParser::VP9Frame &frame : parsePacketResult.value)
+    {
+        if (frame.showExistingFrame)
+        {
+            const VP9DXVAHelperImpl::VP9RefFrame &refFrame = impl->refFrames[frame.frameToShowMapIdx];
+
+            if (refFrame.surfaceIndex == VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX)
+            {
+                return false;
+            }
+
+            impl->lastOutputViewIndex = refFrame.surfaceIndex;
+
+            continue;
+        }
+
+        UINT outputViewIndex;
+        if (!impl->findUnusedOutputViewIndex(outputViewIndex))
+        {
+            return false;
+        }
+
+        // See how Chromium initializes `DXVA_PicParams_VP9`:
+        // https://chromium.googlesource.com/chromium/src/+/refs/heads/main/media/gpu/windows/d3d_vp9_accelerator.cc
+        DXVA_PicParams_VP9 pictureParameters = {};
+        pictureParameters.CurrPic.Index7Bits = outputViewIndex;
+        pictureParameters.CurrPic.AssociatedFlag = 0; // Not relevant for VP9.
+        pictureParameters.profile = frame.profile;
+        pictureParameters.frame_type = frame.frameType;
+        pictureParameters.show_frame = frame.showFrame;
+        pictureParameters.error_resilient_mode = frame.errorResilientMode;
+        pictureParameters.subsampling_x = frame.subsamplingX;
+        pictureParameters.subsampling_y = frame.subsamplingY;
+        pictureParameters.extra_plane = 0; // VP9 with alpha does not support hardware acceleration.
+        pictureParameters.refresh_frame_context = frame.refreshFrameContext;
+        pictureParameters.frame_parallel_decoding_mode = frame.frameParallelDecodingMode;
+        pictureParameters.intra_only = frame.intraOnly;
+        pictureParameters.frame_context_idx = frame.frameContextIdx;
+        pictureParameters.reset_frame_context = frame.resetFrameContext;
+        pictureParameters.allow_high_precision_mv = frame.allowHighPrecisionMv;
+        pictureParameters.ReservedFormatInfo2Bits = 0;
+        pictureParameters.width = frame.width;
+        pictureParameters.height = frame.height;
+        switch (frame.colorDepth)
+        {
+            case VP9FrameParser::COLOR_DEPTH_8:
+                pictureParameters.BitDepthMinus8Luma = 8 - 8;
+                pictureParameters.BitDepthMinus8Chroma = 8 - 8;
+                break;
+            case VP9FrameParser::COLOR_DEPTH_10:
+                pictureParameters.BitDepthMinus8Luma = 10 - 8;
+                pictureParameters.BitDepthMinus8Chroma = 10 - 8;
+                break;
+            case VP9FrameParser::COLOR_DEPTH_12:
+                pictureParameters.BitDepthMinus8Luma = 12 - 8;
+                pictureParameters.BitDepthMinus8Chroma = 12 - 8;
+                break;
+            default:
+                return false;
+        }
+        pictureParameters.interp_filter = frame.interpolationFilter;
+        pictureParameters.Reserved8Bits = 0;
+        for (UINT i = 0; i < std::size(impl->refFrames); ++i)
+        {
+            VP9DXVAHelperImpl::VP9RefFrame refFrame = impl->refFrames[i];
+
+            if (refFrame.surfaceIndex == VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX)
+            {
+                pictureParameters.ref_frame_map[i].Index7Bits = VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX;
+                pictureParameters.ref_frame_map[i].AssociatedFlag = 0; // Not relevant for VP9.
+                pictureParameters.ref_frame_coded_width[i] = 0;
+                pictureParameters.ref_frame_coded_height[i] = 0;
+            }
+            else
+            {
+                pictureParameters.ref_frame_map[i].Index7Bits = refFrame.surfaceIndex;
+                pictureParameters.ref_frame_map[i].AssociatedFlag = 0; // Not relevant for VP9.
+                pictureParameters.ref_frame_coded_width[i] = refFrame.width;
+                pictureParameters.ref_frame_coded_height[i] = refFrame.height;
+            }
+        }
+        for (UINT i = 0; i < std::size(pictureParameters.frame_refs); ++i)
+        {
+            pictureParameters.frame_refs[i] = pictureParameters.ref_frame_map[frame.refFrameIndices[i]];
+        }
+        memcpy(pictureParameters.ref_frame_sign_bias, frame.refFrameSignBias, sizeof(frame.refFrameSignBias));
+        pictureParameters.filter_level = frame.loopFilterLevel;
+        pictureParameters.sharpness_level = frame.loopFilterSharpness;
+        pictureParameters.mode_ref_delta_enabled = frame.loopFilterDeltaEnabled;
+        pictureParameters.mode_ref_delta_update = frame.loopFilterUpdateRefDelta;
+        pictureParameters.use_prev_in_find_mv_refs = (impl->lastFrameWidth == frame.width
+            && impl->lastFrameHeight == frame.height
+            && !frame.errorResilientMode
+            && !frame.intraOnly
+            && impl->lastShowFrame);
+        pictureParameters.ReservedControlInfo5Bits = 0;
+        memcpy(pictureParameters.ref_deltas, frame.loopFilterRefDeltas, sizeof(frame.loopFilterRefDeltas));
+        memcpy(pictureParameters.mode_deltas, frame.loopFilterModeDeltas, sizeof(frame.loopFilterModeDeltas));
+        pictureParameters.base_qindex = frame.baseQIdx;
+        pictureParameters.y_dc_delta_q = frame.deltaQYDc;
+        pictureParameters.uv_dc_delta_q = frame.deltaQUvDc;
+        pictureParameters.uv_ac_delta_q = frame.deltaQUvAc;
+        pictureParameters.stVP9Segments.enabled = frame.segmentationEnabled;
+        pictureParameters.stVP9Segments.update_map = frame.segmentationUpdateMap;
+        pictureParameters.stVP9Segments.temporal_update = frame.segmentationTemporalUpdate;
+        pictureParameters.stVP9Segments.abs_delta = frame.segmentationAbsOrDeltaUpdate;
+        pictureParameters.stVP9Segments.ReservedSegmentFlags4Bits = 0;
+        memcpy(pictureParameters.stVP9Segments.tree_probs, frame.segmentTreeProbs, sizeof(frame.segmentTreeProbs));
+        memcpy(pictureParameters.stVP9Segments.pred_probs, frame.segmentPredProbs, sizeof(frame.segmentPredProbs));
+        memcpy(pictureParameters.stVP9Segments.feature_data, frame.segmentFeatureData, sizeof(frame.segmentFeatureData));
+        memset(pictureParameters.stVP9Segments.feature_mask, 0, sizeof(pictureParameters.stVP9Segments.feature_mask));
+        for (UINT segment = 0; segment < std::size(frame.segmentFeatureEnabled); ++segment)
+        {
+            for (UINT feature = 0; feature < std::size(frame.segmentFeatureEnabled[0]); ++feature)
+            {
+                if (frame.segmentFeatureEnabled[segment][feature])
+                {
+                    pictureParameters.stVP9Segments.feature_mask[segment] |= (1 << feature);
+                }
+            }
+        }
+        pictureParameters.log2_tile_cols = frame.tileColsLog2;
+        pictureParameters.log2_tile_rows = frame.tileRowsLog2;
+        pictureParameters.uncompressed_header_size_byte_aligned = static_cast<USHORT>(frame.uncompressedHeaderSize);
+        pictureParameters.first_partition_size = static_cast<USHORT>(frame.compressedHeaderSize);
+        pictureParameters.Reserved16Bits = 0;
+        pictureParameters.Reserved32Bits = 0;
+        pictureParameters.StatusReportFeedbackNumber = ++impl->statusReportFeedbackNumber;
+
+        if (!impl->decodeFrame(&pictureParameters, sizeof(pictureParameters), frame.bitstream.ptr, static_cast<UINT>(frame.bitstream.len), outputViewIndex))
+        {
+            return false;
+        }
+
+        for (UINT i = 0; i < std::size(impl->refFrames); ++i)
+        {
+            if (frame.refreshFrameFlags & (1 << i))
+            {
+                impl->refFrames[i].surfaceIndex = outputViewIndex;
+                impl->refFrames[i].width = frame.width;
+                impl->refFrames[i].height = frame.height;
+            }
+        }
+
+        impl->lastFrameWidth = frame.width;
+        impl->lastFrameHeight = frame.height;
+        impl->lastShowFrame = frame.showFrame;
+        if (frame.showFrame)
+        {
+            impl->lastOutputViewIndex = outputViewIndex;
+        }
     }
 
     return true;
 }
 
-DXVADecoder::DXVADecoder(const WebMDemuxer &demuxer)
+VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer)
 {
     switch (demuxer.getVideoCodec())
     {
 #ifndef LIBSIMPLEWEBM_DISABLE_VP9
         case WebMDemuxer::VIDEO_VP9:
-			dxvaHelper = DXVAHelper();
-			break;
+            vp9DXVAHelper = VP9DXVAHelper();
+            break;
 #endif
 
         default:
             return;
     }
 
-	if (!dxvaHelper.setupVP9(demuxer.getWidth(), demuxer.getHeight()))
+    if (!vp9DXVAHelper.setupVP9(demuxer.getWidth(), demuxer.getHeight()))
     {
-		dxvaHelper = DXVAHelper();
-		return;
-	}
+        vp9DXVAHelper = VP9DXVAHelper();
+        return;
+    }
 }
 
-DXVADecoder::~DXVADecoder()
+VP9DXVADecoder::~VP9DXVADecoder()
 {
-	dxvaHelper = DXVAHelper();
+    vp9DXVAHelper = VP9DXVAHelper();
 }
 
-bool DXVADecoder::decode(const WebMFrame &frame)
+bool VP9DXVADecoder::decode(const WebMFrame &frame)
 {
     if (!m_ctx || !frame.isValid())
         return false;
@@ -629,7 +777,7 @@ bool DXVADecoder::decode(const WebMFrame &frame)
     return true;
 }
 
-DXVADecoder::IMAGE_ERROR DXVADecoder::getImage(Image &image)
+VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::getImage(Image &image)
 {
     IMAGE_ERROR err = NO_FRAME;
 
@@ -711,7 +859,7 @@ static inline int ceilRshift(int val, int shift)
 }
 
 // 0 = Y, 1 = U, 2 = V, 3 = alpha.
-int DXVADecoder::Image::getWidth(int plane) const
+int VP9DXVADecoder::Image::getWidth(int plane) const
 {
     if (plane == 0 || plane == 3)
         return w;
@@ -719,7 +867,7 @@ int DXVADecoder::Image::getWidth(int plane) const
     return ceilRshift(w, chromaShiftW);
 }
 
-int DXVADecoder::Image::getHeight(int plane) const
+int VP9DXVADecoder::Image::getHeight(int plane) const
 {
     if (plane == 0 || plane == 3)
         return h;
@@ -727,7 +875,7 @@ int DXVADecoder::Image::getHeight(int plane) const
     return ceilRshift(h, chromaShiftH);
 }
 
-bool DXVADecoder::reset()
+bool VP9DXVADecoder::reset()
 {
     if (!m_ctx || !m_codecIface)
         return false;

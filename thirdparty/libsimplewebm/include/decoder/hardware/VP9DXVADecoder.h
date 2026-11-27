@@ -24,28 +24,28 @@
  *    SOFTWARE.
  */
 
-#ifndef DXVA_DECODER_H
-#define DXVA_DECODER_H
+#ifndef VP9_DXVA_DECODER_H
+#define VP9_DXVA_DECODER_H
 
 #include "include/demuxer/WebMDemuxer.h"
 
-struct DXVAHelper
+struct VP9DXVAHelper
 {
 private:
-    struct DXVAHelperImpl;
-    std::unique_ptr<DXVAHelperImpl> impl;
+    struct VP9DXVAHelperImpl;
+    std::unique_ptr<VP9DXVAHelperImpl> impl;
 
 public:
-    DXVAHelper();
+    VP9DXVAHelper();
 
     bool setupVP9(unsigned int width, unsigned int height);
-    bool decodeFrameVP9(const uint8_t *bitstream, unsigned int bitstreamSize);
+    bool decodeVP9(const uint8_t *bitstream, size_t bitstreamSize);
 };
 
-class DXVADecoder
+class VP9DXVADecoder
 {
-    DXVADecoder(const DXVADecoder &);
-    void operator =(const DXVADecoder &);
+    VP9DXVADecoder(const VP9DXVADecoder &);
+    void operator =(const VP9DXVADecoder &);
 
 public:
     class Image
@@ -74,8 +74,8 @@ public:
         NO_FRAME
     };
 
-    DXVADecoder(const WebMDemuxer &demuxer);
-    ~DXVADecoder();
+    VP9DXVADecoder(const WebMDemuxer &demuxer);
+    ~VP9DXVADecoder();
 
     inline bool isOpen() const
     {
@@ -94,7 +94,7 @@ public:
     bool reset();
 
 private:
-	DXVAHelper dxvaHelper;
+    VP9DXVAHelper vp9DXVAHelper;
 };
 
-#endif // DXVA_DECODER_H
+#endif // VP9_DXVA_DECODER_H
