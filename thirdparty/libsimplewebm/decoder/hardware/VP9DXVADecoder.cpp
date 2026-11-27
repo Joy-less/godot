@@ -45,19 +45,19 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         UINT surfaceIndex = INVALID_SURFACE_INDEX;
         UINT width = 0;
         UINT height = 0;
-		VP9FrameParser::COLOR_SPACE colorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
-	};
+        VP9FrameParser::COLOR_SPACE colorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
+    };
 
-	ComPtr<ID3D11Device> device = nullptr;
+    ComPtr<ID3D11Device> device = nullptr;
     ComPtr<ID3D11DeviceContext> context = nullptr;
     ComPtr<ID3D11VideoDevice> videoDevice = nullptr;
     ComPtr<ID3D11VideoContext> videoContext = nullptr;
     ComPtr<ID3D11VideoDecoder> videoDecoder = nullptr;
     ComPtr<ID3D11Texture2D> decodeTexture = nullptr;
-	ComPtr<ID3D11Texture2D> stagingTexture = nullptr;
-	std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
+    ComPtr<ID3D11Texture2D> stagingTexture = nullptr;
+    std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
 
-	VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
+    VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
     VP9RefFrame refFrames[8] = {
         VP9RefFrame(),
         VP9RefFrame(),
@@ -274,24 +274,24 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         }
 
         // Create a texture to read from the GPU back to the CPU.
-		D3D11_TEXTURE2D_DESC stagingTextureDesc = {};
-		decodeTexture->GetDesc(&stagingTextureDesc); // Copy values from decodeTexture.
-		stagingTextureDesc.ArraySize = 1; // We only need to read back one of the outputViews.
-		stagingTextureDesc.Usage = D3D11_USAGE_STAGING;
-		stagingTextureDesc.BindFlags = 0;
-		stagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		stagingTextureDesc.MiscFlags = 0;
-		hr = this->device->CreateTexture2D(
+        D3D11_TEXTURE2D_DESC stagingTextureDesc = {};
+        decodeTexture->GetDesc(&stagingTextureDesc); // Copy values from decodeTexture.
+        stagingTextureDesc.ArraySize = 1; // We only need to read back one of the outputViews.
+        stagingTextureDesc.Usage = D3D11_USAGE_STAGING;
+        stagingTextureDesc.BindFlags = 0;
+        stagingTextureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        stagingTextureDesc.MiscFlags = 0;
+        hr = this->device->CreateTexture2D(
             &stagingTextureDesc,
             nullptr,
             &this->stagingTexture
-		);
+        );
         if (FAILED(hr))
         {
-			return false;
-		}
+            return false;
+        }
 
-		return true;
+        return true;
     }
 
     bool findUnusedOutputViewIndex(UINT &outputViewIndex)
@@ -512,13 +512,13 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         return true;
     }
 
-	bool stageFrame(UINT outputViewIndex, DXGI_FORMAT format, UINT width, UINT height, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
+    bool stageFrame(UINT outputViewIndex, DXGI_FORMAT format, UINT width, UINT height, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
     {
-		HRESULT hr;
+        HRESULT hr;
 
         // Copy the texture from the GPU to the CPU.
-		this->context->CopySubresourceRegion(
-			stagingTexture.Get(),
+        this->context->CopySubresourceRegion(
+            stagingTexture.Get(),
             D3D11CalcSubresource(
                 0, // Use the first mipmap level (since mipmaps are disabled).
                 0,
@@ -534,9 +534,9 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
                 1 // There is only one mipmap level (since mipmaps are disabled).
             ),
             nullptr
-		);
+        );
 
-		D3D11_MAPPED_SUBRESOURCE mappedSubresource = {};
+        D3D11_MAPPED_SUBRESOURCE mappedSubresource = {};
 
         // Make the texture on the CPU available for use.
         hr = this->context->Map(
@@ -548,61 +548,61 @@ struct VP9DXVAHelper::VP9DXVAHelperImpl
         );
         if (FAILED(hr))
         {
-			return false;
-		}
+            return false;
+        }
 
         // Copy the data from each plane.
         if (format == DXGI_FORMAT_NV12) // YUV 4:2:0 format.
         {
-			const UINT chromaWidth = (width + 1) / 2;
-			const UINT chromaHeight = (height + 1) / 2;
+            const UINT chromaWidth = (width + 1) / 2;
+            const UINT chromaHeight = (height + 1) / 2;
 
-			const uint8_t *sourceY = static_cast<const uint8_t *>(mappedSubresource.pData);
+            const uint8_t *sourceY = static_cast<const uint8_t *>(mappedSubresource.pData);
             const uint8_t *sourceUV = static_cast<const uint8_t *>(sourceY + (mappedSubresource.RowPitch * height));
 
             yPlane.resize(width * height);
-			uPlane.resize(chromaWidth * chromaHeight);
-			vPlane.resize(chromaWidth * chromaHeight);
+            uPlane.resize(chromaWidth * chromaHeight);
+            vPlane.resize(chromaWidth * chromaHeight);
 
-			for (UINT rowIndex = 0; rowIndex < height; ++rowIndex)
+            for (UINT rowIndex = 0; rowIndex < height; ++rowIndex)
             {
-				const uint8_t *sourceYRow = sourceY + (rowIndex * mappedSubresource.RowPitch);
-				uint8_t *destinationYRow = yPlane.data() + (rowIndex * width);
+                const uint8_t *sourceYRow = sourceY + (rowIndex * mappedSubresource.RowPitch);
+                uint8_t *destinationYRow = yPlane.data() + (rowIndex * width);
 
-				memcpy(destinationYRow, sourceYRow, width);
-			}
+                memcpy(destinationYRow, sourceYRow, width);
+            }
 
-			for (UINT rowIndex = 0; rowIndex < chromaHeight; ++rowIndex)
+            for (UINT rowIndex = 0; rowIndex < chromaHeight; ++rowIndex)
             {
-				const uint8_t *sourceUVRow = sourceUV + (rowIndex * mappedSubresource.RowPitch);
-				uint8_t *destinationURow = uPlane.data() + (rowIndex * chromaWidth);
-				uint8_t *destinationVRow = vPlane.data() + (rowIndex * chromaWidth);
+                const uint8_t *sourceUVRow = sourceUV + (rowIndex * mappedSubresource.RowPitch);
+                uint8_t *destinationURow = uPlane.data() + (rowIndex * chromaWidth);
+                uint8_t *destinationVRow = vPlane.data() + (rowIndex * chromaWidth);
 
-				for (UINT column = 0; column < chromaWidth; ++column)
+                for (UINT column = 0; column < chromaWidth; ++column)
                 {
-					destinationURow[column] = sourceUVRow[column * 2];
-					destinationVRow[column] = sourceUVRow[(column * 2) + 1];
-				}
-			}
-		}
+                    destinationURow[column] = sourceUVRow[column * 2];
+                    destinationVRow[column] = sourceUVRow[(column * 2) + 1];
+                }
+            }
+        }
         else // Unsupported format.
         {
             this->context->Unmap(
                 stagingTexture.Get(),
                 0
             );
-			return false;
-		}
+            return false;
+        }
 
         this->context->Unmap(
             stagingTexture.Get(),
             0
         );
 
-		return true;
-	}
+        return true;
+    }
 
-	static constexpr UINT roundUpToNearest(UINT value, UINT step)
+    static constexpr UINT roundUpToNearest(UINT value, UINT step)
     {
         if (step == 0)
         {
@@ -670,13 +670,13 @@ bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
                 return false;
             }
 
-			impl->lastFrameWidth = refFrame.width;
-			impl->lastFrameHeight = refFrame.height;
-			impl->lastFrameColorSpace = refFrame.colorSpace;
-			impl->lastShowFrame = true;
-			impl->lastOutputViewIndex = refFrame.surfaceIndex;
+            impl->lastFrameWidth = refFrame.width;
+            impl->lastFrameHeight = refFrame.height;
+            impl->lastFrameColorSpace = refFrame.colorSpace;
+            impl->lastShowFrame = true;
+            impl->lastOutputViewIndex = refFrame.surfaceIndex;
 
-			continue;
+            continue;
         }
 
         UINT outputViewIndex;
@@ -804,15 +804,15 @@ bool VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t bitstreamSize)
                 impl->refFrames[i].surfaceIndex = outputViewIndex;
                 impl->refFrames[i].width = frame.width;
                 impl->refFrames[i].height = frame.height;
-				impl->refFrames[i].colorSpace = frame.colorSpace;
-			}
-		}
+                impl->refFrames[i].colorSpace = frame.colorSpace;
+            }
+        }
 
         impl->lastFrameWidth = frame.width;
         impl->lastFrameHeight = frame.height;
-		impl->lastFrameColorSpace = frame.colorSpace;
-		impl->lastShowFrame = frame.showFrame;
-		if (frame.showFrame)
+        impl->lastFrameColorSpace = frame.colorSpace;
+        impl->lastShowFrame = frame.showFrame;
+        if (frame.showFrame)
         {
             impl->lastOutputViewIndex = outputViewIndex;
         }
@@ -825,28 +825,28 @@ bool VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> 
 {
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
 
-	if (!impl->stageFrame(impl->lastOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
+    if (!impl->stageFrame(impl->lastOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
     {
-		return false;
-	}
+        return false;
+    }
 
-	image.w = impl->lastFrameWidth;
-	image.h = impl->lastFrameHeight;
-	image.cs = impl->lastFrameColorSpace;
+    image.w = impl->lastFrameWidth;
+    image.h = impl->lastFrameHeight;
+    image.cs = impl->lastFrameColorSpace;
 
-	image.chromaShiftW = 1; // NV12 format.
-	image.chromaShiftH = 1; // NV12 format.
-	image.bitDepth = 8; // NV12 format.
+    image.chromaShiftW = 1; // NV12 format.
+    image.chromaShiftH = 1; // NV12 format.
+    image.bitDepth = 8; // NV12 format.
 
-	image.planes[0] = yPlane.data();
-	image.planes[1] = uPlane.data();
-	image.planes[2] = vPlane.data();
+    image.planes[0] = yPlane.data();
+    image.planes[1] = uPlane.data();
+    image.planes[2] = vPlane.data();
 
-	image.linesize[0] = image.w; // NV12 format.
-	image.linesize[1] = (image.w + 1) / 2; // NV12 format.
-	image.linesize[2] = (image.w + 1) / 2; // NV12 format.
+    image.linesize[0] = image.w; // NV12 format.
+    image.linesize[1] = (image.w + 1) / 2; // NV12 format.
+    image.linesize[2] = (image.w + 1) / 2; // NV12 format.
 
-	return true;
+    return true;
 }
 
 VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer)
@@ -884,7 +884,7 @@ VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
 
     if (!vp9DXVAHelper.decodeVP9(frame.buffer, frame.bufferSize))
     {
-		return IMAGE_ERROR_UNSUPPORTED_FRAME;
+        return IMAGE_ERROR_UNSUPPORTED_FRAME;
     }
 
     return IMAGE_ERROR_OK;
@@ -894,10 +894,10 @@ VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::getImage(Image &image)
 {
     if (!vp9DXVAHelper.stageVP9(image, yPlane, uPlane, vPlane))
     {
-		return IMAGE_ERROR_UNSUPPORTED_FRAME;
-	}
+        return IMAGE_ERROR_UNSUPPORTED_FRAME;
+    }
 
-	return IMAGE_ERROR_OK;
+    return IMAGE_ERROR_OK;
 }
 
 static inline int ceilRshift(int val, int shift)
@@ -923,9 +923,9 @@ int VP9DXVADecoder::Image::getHeight(int plane) const
 
 void VP9DXVADecoder::reset()
 {
-	yPlane.clear();
-	uPlane.clear();
-	vPlane.clear();
+    yPlane.clear();
+    uPlane.clear();
+    vPlane.clear();
 
-	vp9DXVAHelper = VP9DXVAHelper();
+    vp9DXVAHelper = VP9DXVAHelper();
 }
