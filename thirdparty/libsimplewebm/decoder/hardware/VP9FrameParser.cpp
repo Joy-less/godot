@@ -910,6 +910,7 @@ Result<VP9Frame> VP9Parser::parseFrame(Slice<uint8_t> bitstream)
             {
                 return { allowHighPrecisionMvResult.error };
             }
+            this->allowHighPrecisionMv = allowHighPrecisionMvResult.value;
             ERROR readInterpolationFilterError = readInterpolationFilter(br);
             if (readInterpolationFilterError)
             {
@@ -954,13 +955,17 @@ Result<VP9Frame> VP9Parser::parseFrame(Slice<uint8_t> bitstream)
 
     if (this->frameType == FRAME_TYPE_KEY_FRAME || this->errorResilientMode || this->intraOnly)
     {
-        // Reset the loop filter deltas.
+        // See setup_past_independence.
+        memset(this->segmentFeatureData, 0, sizeof(this->segmentFeatureData));
+        memset(this->segmentFeatureEnabled, 0, sizeof(this->segmentFeatureEnabled));
+        this->segmentationAbsOrDeltaUpdate = false;
+        this->loopFilterDeltaEnabled = true;
         this->loopFilterRefDeltas[INTRA_FRAME] = 1;
         this->loopFilterRefDeltas[LAST_FRAME] = 0;
         this->loopFilterRefDeltas[GOLDEN_FRAME] = -1;
         this->loopFilterRefDeltas[ALTREF_FRAME] = -1;
-        this->loopFilterModeDeltas[0] = 0;
-        this->loopFilterModeDeltas[1] = 0;
+        memset(this->loopFilterModeDeltas, 0, sizeof(this->loopFilterModeDeltas));
+        memset(this->refFrameSignBias, 0, sizeof(this->refFrameSignBias));
     }
     ERROR loopFilterParamsError = loopFilterParams(br);
     if (loopFilterParamsError)
