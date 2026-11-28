@@ -840,21 +840,21 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(WebMImage &image, std::vector<uint8
         return false;
     }
 
-    image.w = impl->lastVisibleFrameWidth;
-    image.h = impl->lastVisibleFrameHeight;
-    image.cs = impl->lastVisibleFrameColorSpace;
+    image.width = impl->lastVisibleFrameWidth;
+    image.height = impl->lastVisibleFrameHeight;
+    image.colorSpace = impl->lastVisibleFrameColorSpace;
 
-    image.chromaShiftW = 1; // NV12 format.
-    image.chromaShiftH = 1; // NV12 format.
+    image.chromaShiftWidth = 1; // NV12 format.
+    image.chromaShiftHeight = 1; // NV12 format.
     image.bitDepth = 8; // NV12 format.
 
     image.planes[0] = yPlane.data();
     image.planes[1] = uPlane.data();
     image.planes[2] = vPlane.data();
 
-    image.linesize[0] = image.w; // NV12 format.
-    image.linesize[1] = (image.w + 1) / 2; // NV12 format.
-    image.linesize[2] = (image.w + 1) / 2; // NV12 format.
+    image.linesize[0] = image.width; // NV12 format.
+    image.linesize[1] = (image.width + 1) / 2; // NV12 format.
+    image.linesize[2] = (image.width + 1) / 2; // NV12 format.
 
     return true;
 }

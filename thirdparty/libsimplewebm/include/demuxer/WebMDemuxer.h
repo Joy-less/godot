@@ -49,10 +49,10 @@ public:
 	int getWidth(int plane) const;
 	int getHeight(int plane) const;
 
-	int w, h;
-	int cs;
+	int width, height;
+	int colorSpace;
 
-	int chromaShiftW, chromaShiftH;
+	int chromaShiftWidth, chromaShiftHeight;
 	int bitDepth;
 
 	unsigned char *planes[3];

@@ -396,17 +396,17 @@ void VideoStreamPlaybackWebm::update(double p_delta) {
 				} else {
 					get_image_error = video_vpx->getImage(image);
 				}
-				if (get_image_error == WebMImage::NO_IMAGE_ERROR && image.w == webm->getWidth() && image.h == webm->getHeight()) {
+				if (get_image_error == WebMImage::NO_IMAGE_ERROR && image.width == webm->getWidth() && image.height == webm->getHeight()) {
 					bool converted = false;
 
-					if (image.chromaShiftW == 0 && image.chromaShiftH == 0 && image.cs == VPX_CS_SRGB) { // sRGB format.
+					if (image.chromaShiftWidth == 0 && image.chromaShiftHeight == 0 && image.colorSpace == VPX_CS_SRGB) { // sRGB format.
 						uint8_t *wp = frame_data.ptrw();
 						const unsigned char *rRow = image.planes[2];
 						const unsigned char *gRow = image.planes[0];
 						const unsigned char *bRow = image.planes[1];
 						const unsigned char *aRow = image.alpha;
-						for (int y = 0; y < image.h; y++) {
-							for (int x = 0; x < image.w; x++) {
+						for (int y = 0; y < image.height; y++) {
+							for (int x = 0; x < image.width; x++) {
 								*wp++ = rRow[x];
 								*wp++ = gRow[x];
 								*wp++ = bRow[x];
@@ -421,27 +421,27 @@ void VideoStreamPlaybackWebm::update(double p_delta) {
 						}
 						converted = true;
 					} else { // YUV format.
-						if (image.chromaShiftW == 1 && image.chromaShiftH == 1) { // YUV 420 format.
+						if (image.chromaShiftWidth == 1 && image.chromaShiftHeight == 1) { // YUV 420 format.
 							uint8_t *wp = frame_data.ptrw();
-							yuv420_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.w, image.h, image.linesize[0], image.linesize[1], image.w << 2);
+							yuv420_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.width, image.height, image.linesize[0], image.linesize[1], image.width << 2);
 							converted = true;
-						} else if (image.chromaShiftW == 1 && image.chromaShiftH == 0) { // YUV 422 format.
+						} else if (image.chromaShiftWidth == 1 && image.chromaShiftHeight == 0) { // YUV 422 format.
 							uint8_t *wp = frame_data.ptrw();
-							yuv422_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.w, image.h, image.linesize[0], image.linesize[1], image.w << 2);
+							yuv422_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.width, image.height, image.linesize[0], image.linesize[1], image.width << 2);
 							converted = true;
-						} else if (image.chromaShiftW == 0 && image.chromaShiftH == 0) { // YUV 444 format.
+						} else if (image.chromaShiftWidth == 0 && image.chromaShiftHeight == 0) { // YUV 444 format.
 							uint8_t *wp = frame_data.ptrw();
-							yuv444_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.w, image.h, image.linesize[0], image.linesize[1], image.w << 2);
+							yuv444_2_rgb8888(wp, image.planes[0], image.planes[1], image.planes[2], image.width, image.height, image.linesize[0], image.linesize[1], image.width << 2);
 							converted = true;
-						} else if (image.chromaShiftW == 2 && image.chromaShiftH == 0) { // YUV 411 format.
+						} else if (image.chromaShiftWidth == 2 && image.chromaShiftHeight == 0) { // YUV 411 format.
 							// This format is rare and thus unsupported by yuv2rgb.h, so discard the frame.
 						}
 
 						if (converted && image.alpha) {
 							uint8_t *wp = frame_data.ptrw();
 							const unsigned char *aRow = image.alpha;
-							for (int y = 0; y < image.h; y++) {
-								for (int x = 0; x < image.w; x++) {
+							for (int y = 0; y < image.height; y++) {
+								for (int x = 0; x < image.width; x++) {
 									wp += 3;
 									*wp++ = aRow[x];
 								}
@@ -452,7 +452,7 @@ void VideoStreamPlaybackWebm::update(double p_delta) {
 
 					if (converted) {
 						Ref<Image> img;
-						img.instantiate(image.w, image.h, false, Image::FORMAT_RGBA8, frame_data); // Zero-copy image creation.
+						img.instantiate(image.width, image.height, false, Image::FORMAT_RGBA8, frame_data); // Zero-copy image creation.
 						texture->update(img); // Zero-copy send to rendering server.
 
 						video_frame_done = true;

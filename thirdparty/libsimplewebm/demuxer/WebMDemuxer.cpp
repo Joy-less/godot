@@ -51,18 +51,18 @@ static inline int ceilRshift(int val, int shift)
 int WebMImage::getWidth(int plane) const
 {
 	if (plane == 0 || plane == 3)
-		return w;
+		return width;
 
-	return ceilRshift(w, chromaShiftW);
+	return ceilRshift(width, chromaShiftWidth);
 }
 
 // 0 = Y, 1 = U, 2 = V, 3 = Alpha.
 int WebMImage::getHeight(int plane) const
 {
 	if (plane == 0 || plane == 3)
-		return h;
+		return height;
 
-	return ceilRshift(h, chromaShiftH);
+	return ceilRshift(height, chromaShiftHeight);
 }
 
 WebMFrame::WebMFrame() :

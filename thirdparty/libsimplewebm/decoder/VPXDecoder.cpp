@@ -187,11 +187,11 @@ WebMImage::IMAGE_ERROR VPXDecoder::getImage(WebMImage &image)
 
 			const int vPlane = !(img->fmt & VPX_IMG_FMT_UV_FLIP) + 1;
 
-			image.w = img->d_w;
-			image.h = img->d_h;
-			image.cs = m_last_space;
-			image.chromaShiftW = img->x_chroma_shift;
-			image.chromaShiftH = img->y_chroma_shift;
+			image.width = img->d_w;
+			image.height = img->d_h;
+			image.colorSpace = m_last_space;
+			image.chromaShiftWidth = img->x_chroma_shift;
+			image.chromaShiftHeight = img->y_chroma_shift;
 			image.bitDepth = img->bit_depth;
 
 			image.planes[0] = img->planes[0];
