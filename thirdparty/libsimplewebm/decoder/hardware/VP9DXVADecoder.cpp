@@ -201,11 +201,16 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
                 configIndex,
                 &config
             );
-            if (SUCCEEDED(hr))
+            if (FAILED(hr))
             {
-                wasConfigFound = true;
-                break;
+                continue;
             }
+            if (config.ConfigBitstreamRaw != 1)
+            {
+                continue;
+            }
+            wasConfigFound = true;
+            break;
         }
         if (!wasConfigFound)
         {
@@ -697,8 +702,25 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
         DXVA_PicParams_VP9 pictureParameters = {};
         pictureParameters.CurrPic.Index7Bits = outputViewIndex;
         pictureParameters.CurrPic.AssociatedFlag = 0; // Not relevant for VP9.
-        pictureParameters.profile = frame.profile;
-        pictureParameters.frame_type = frame.frameType;
+        switch (frame.profile)
+        {
+            case VP9FrameParser::PROFILE_0:
+                pictureParameters.profile = 0;
+                break;
+            default:
+                return false;
+        }
+        switch (frame.frameType)
+        {
+            case VP9FrameParser::FRAME_TYPE_KEY_FRAME:
+                pictureParameters.frame_type = 0;
+                break;
+            case VP9FrameParser::FRAME_TYPE_NON_KEY_FRAME:
+                pictureParameters.frame_type = 1;
+                break;
+            default:
+                return false;
+        }
         pictureParameters.show_frame = frame.showFrame;
         pictureParameters.error_resilient_mode = frame.errorResilientMode;
         pictureParameters.subsampling_x = frame.subsamplingX;
@@ -708,7 +730,23 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
         pictureParameters.frame_parallel_decoding_mode = frame.frameParallelDecodingMode;
         pictureParameters.intra_only = frame.intraOnly;
         pictureParameters.frame_context_idx = frame.frameContextIdx;
-        pictureParameters.reset_frame_context = frame.resetFrameContext;
+        switch (frame.resetFrameContext)
+        {
+            case VP9FrameParser::RESET_FRAME_CONTEXT_NO_0:
+                pictureParameters.reset_frame_context = 0;
+                break;
+            case VP9FrameParser::RESET_FRAME_CONTEXT_NO_1:
+                pictureParameters.reset_frame_context = 1;
+                break;
+            case VP9FrameParser::RESET_FRAME_CONTEXT_SINGLE_RESET:
+                pictureParameters.reset_frame_context = 2;
+                break;
+            case VP9FrameParser::RESET_FRAME_CONTEXT_FULL_RESET:
+                pictureParameters.reset_frame_context = 3;
+                break;
+            default:
+                return false;
+        }
         pictureParameters.allow_high_precision_mv = frame.allowHighPrecisionMv;
         pictureParameters.ReservedFormatInfo2Bits = 0;
         pictureParameters.width = frame.width;
@@ -730,7 +768,26 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
             default:
                 return false;
         }
-        pictureParameters.interp_filter = frame.interpolationFilter;
+        switch (frame.interpolationFilter)
+        {
+            case VP9FrameParser::INTERPOLATION_FILTER_EIGHTTAP:
+                pictureParameters.interp_filter = 0;
+                break;
+            case VP9FrameParser::INTERPOLATION_FILTER_EIGHTTAP_SMOOTH:
+                pictureParameters.interp_filter = 1;
+                break;
+            case VP9FrameParser::INTERPOLATION_FILTER_EIGHTTAP_SHARP:
+                pictureParameters.interp_filter = 2;
+                break;
+            case VP9FrameParser::INTERPOLATION_FILTER_BILINEAR:
+                pictureParameters.interp_filter = 3;
+                break;
+            case VP9FrameParser::INTERPOLATION_FILTER_SWITCHABLE:
+                pictureParameters.interp_filter = 4;
+                break;
+            default:
+                return false;
+        }
         pictureParameters.Reserved8Bits = 0;
         for (UINT i = 0; i < std::size(impl->refFrames); ++i)
         {
