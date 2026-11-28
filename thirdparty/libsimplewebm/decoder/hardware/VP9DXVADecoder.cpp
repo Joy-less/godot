@@ -815,11 +815,12 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
         pictureParameters.filter_level = frame.loopFilterLevel;
         pictureParameters.sharpness_level = frame.loopFilterSharpness;
         pictureParameters.mode_ref_delta_enabled = frame.loopFilterDeltaEnabled;
-        pictureParameters.mode_ref_delta_update = frame.loopFilterUpdateRefDelta;
+        pictureParameters.mode_ref_delta_update = (frame.loopFilterUpdateRefDelta || frame.loopFilterUpdateModeDelta);
         pictureParameters.use_prev_in_find_mv_refs = (impl->lastFrameWidth == frame.width
             && impl->lastFrameHeight == frame.height
             && !frame.errorResilientMode
             && !frame.intraOnly
+            && frame.frameType != VP9FrameParser::FRAME_TYPE_KEY_FRAME
             && impl->lastFrameIsVisible);
         pictureParameters.ReservedControlInfo5Bits = 0;
         memcpy(pictureParameters.ref_deltas, frame.loopFilterRefDeltas, sizeof(frame.loopFilterRefDeltas));
