@@ -1565,7 +1565,7 @@ ERROR VP9Parser::segmentationParams(BitReader &br)
 
                 if (this->segmentFeatureEnabled[i][SEG_LVL_REF_FRAME])
                 {
-                    Result<int16_t> segmentFeatureDataRefFrameResult = br.readInverseI16(6);
+                    Result<int16_t> segmentFeatureDataRefFrameResult = br.readInverseI16(2);
                     if (segmentFeatureDataRefFrameResult.error)
                     {
                         return segmentFeatureDataRefFrameResult.error;
