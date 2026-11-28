@@ -484,12 +484,12 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         buffers[0].DataSize = pictureParametersSize;
 
         buffers[1] = {};
-        buffers[1].BufferType = D3D11_VIDEO_DECODER_BUFFER_BITSTREAM;
-        buffers[1].DataSize = bitstreamSize + bitstreamPaddingSize;
+        buffers[1].BufferType = D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL;
+        buffers[1].DataSize = sizeof(slice);
 
         buffers[2] = {};
-        buffers[2].BufferType = D3D11_VIDEO_DECODER_BUFFER_SLICE_CONTROL;
-        buffers[2].DataSize = sizeof(slice);
+        buffers[2].BufferType = D3D11_VIDEO_DECODER_BUFFER_BITSTREAM;
+        buffers[2].DataSize = bitstreamSize + bitstreamPaddingSize;
 
         hr = this->videoContext->SubmitDecoderBuffers(
             this->videoDecoder.Get(),
@@ -738,8 +738,7 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
 
             if (refFrame.surfaceIndex == VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX)
             {
-                pictureParameters.ref_frame_map[i].Index7Bits = VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX;
-                pictureParameters.ref_frame_map[i].AssociatedFlag = 0; // Not relevant for VP9.
+                pictureParameters.ref_frame_map[i].bPicEntry = VP9DXVAHelperImpl::VP9RefFrame::INVALID_SURFACE_INDEX;
                 pictureParameters.ref_frame_coded_width[i] = 0;
                 pictureParameters.ref_frame_coded_height[i] = 0;
             }
