@@ -835,7 +835,7 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(WebMImage &image, std::vector<uint8
 {
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
 
-    if (!impl->stageFrame(impl->lastVisibleFrameOutputViewIndex, format, impl->lastFrameWidth, impl->lastFrameHeight, yPlane, uPlane, vPlane))
+    if (!impl->stageFrame(impl->lastVisibleFrameOutputViewIndex, format, impl->lastVisibleFrameWidth, impl->lastVisibleFrameHeight, yPlane, uPlane, vPlane))
     {
         return false;
     }
