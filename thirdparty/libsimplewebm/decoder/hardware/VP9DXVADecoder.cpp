@@ -856,7 +856,10 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(WebMImage &image, std::vector<uint8
     image.linesize[1] = (image.width + 1) / 2; // NV12 format.
     image.linesize[2] = (image.width + 1) / 2; // NV12 format.
 
-    return true;
+	image.alpha = NULL; // VP9 with alpha does not support hardware acceleration.
+	image.alphaLinesize = 0; // VP9 with alpha does not support hardware acceleration.
+
+	return true;
 }
 
 VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer) :
