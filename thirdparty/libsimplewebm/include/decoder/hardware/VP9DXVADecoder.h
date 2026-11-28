@@ -66,9 +66,12 @@ public:
 private:
     VP9DXVAHelper *m_vp9DXVAHelper = nullptr;
 
-    std::vector<uint8_t> yPlane = {};
-    std::vector<uint8_t> uPlane = {};
-    std::vector<uint8_t> vPlane = {};
+    std::vector<uint8_t> m_yPlane = {};
+    std::vector<uint8_t> m_uPlane = {};
+    std::vector<uint8_t> m_vPlane = {};
+
+    int m_width = 0;
+    int m_height = 0;
 };
 
 #endif // VP9_DXVA_DECODER_H

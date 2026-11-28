@@ -856,10 +856,10 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(WebMImage &image, std::vector<uint8
     image.linesize[1] = (image.width + 1) / 2; // NV12 format.
     image.linesize[2] = (image.width + 1) / 2; // NV12 format.
 
-	image.alpha = NULL; // VP9 with alpha does not support hardware acceleration.
-	image.alphaLinesize = 0; // VP9 with alpha does not support hardware acceleration.
+    image.alpha = NULL; // VP9 with alpha does not support hardware acceleration.
+    image.alphaLinesize = 0; // VP9 with alpha does not support hardware acceleration.
 
-	return true;
+    return true;
 }
 
 VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer) :
@@ -877,7 +877,10 @@ VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer) :
             return;
     }
 
-    if (!m_vp9DXVAHelper->setupVP9(demuxer.getWidth(), demuxer.getHeight()))
+    m_width = demuxer.getWidth();
+    m_height = demuxer.getHeight();
+
+    if (!m_vp9DXVAHelper->setupVP9(m_width, m_height))
     {
         delete m_vp9DXVAHelper;
         m_vp9DXVAHelper = NULL;
@@ -911,7 +914,7 @@ WebMImage::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
 
 WebMImage::IMAGE_ERROR VP9DXVADecoder::getImage(WebMImage &image)
 {
-    if (!m_vp9DXVAHelper->stageVP9(image, yPlane, uPlane, vPlane))
+    if (!m_vp9DXVAHelper->stageVP9(image, m_yPlane, m_uPlane, m_vPlane))
     {
         return WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
     }
@@ -922,11 +925,13 @@ WebMImage::IMAGE_ERROR VP9DXVADecoder::getImage(WebMImage &image)
 bool VP9DXVADecoder::reset()
 {
     if (!m_vp9DXVAHelper)
+    {
         return false;
+    }
 
-    yPlane.clear();
-    uPlane.clear();
-    vPlane.clear();
+    m_yPlane.clear();
+    m_uPlane.clear();
+    m_vPlane.clear();
 
     if (m_vp9DXVAHelper)
     {
@@ -935,6 +940,13 @@ bool VP9DXVADecoder::reset()
     }
 
     m_vp9DXVAHelper = new VP9DXVAHelper;
+
+    if (!m_vp9DXVAHelper->setupVP9(m_width, m_height))
+    {
+        delete m_vp9DXVAHelper;
+        m_vp9DXVAHelper = NULL;
+        return false;
+    }
 
     return true;
 }
