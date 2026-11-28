@@ -36,6 +36,32 @@
 #include <webm/reader.h>
 #include <webm/webm_parser.h>
 
+class WebMImage
+{
+public:
+	enum IMAGE_ERROR
+	{
+		NO_IMAGE_ERROR,
+		IMAGE_ERROR_UNSUPPORTED_FRAME,
+		IMAGE_ERROR_NO_FRAME,
+	};
+
+	int getWidth(int plane) const;
+	int getHeight(int plane) const;
+
+	int w, h;
+	int cs;
+
+	int chromaShiftW, chromaShiftH;
+	int bitDepth;
+
+	unsigned char *planes[3];
+	int linesize[3];
+
+	unsigned char *alpha;
+	int alphaLinesize;
+};
+
 class WebMFrame
 {
 	WebMFrame(const WebMFrame &);

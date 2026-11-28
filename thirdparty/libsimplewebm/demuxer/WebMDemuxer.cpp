@@ -42,6 +42,29 @@ namespace
 	constexpr std::uint64_t kAlphaBlockAddId = 1;
 }
 
+static inline int ceilRshift(int val, int shift)
+{
+	return (val + (1 << shift) - 1) >> shift;
+}
+
+// 0 = Y, 1 = U, 2 = V, 3 = Alpha.
+int WebMImage::getWidth(int plane) const
+{
+	if (plane == 0 || plane == 3)
+		return w;
+
+	return ceilRshift(w, chromaShiftW);
+}
+
+// 0 = Y, 1 = U, 2 = V, 3 = Alpha.
+int WebMImage::getHeight(int plane) const
+{
+	if (plane == 0 || plane == 3)
+		return h;
+
+	return ceilRshift(h, chromaShiftH);
+}
+
 WebMFrame::WebMFrame() :
 	bufferSize(0),
 	bufferCapacity(0),

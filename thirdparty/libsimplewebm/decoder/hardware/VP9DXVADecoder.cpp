@@ -46,13 +46,13 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         VP9FrameParser::COLOR_SPACE colorSpace = VP9FrameParser::COLOR_SPACE_UNKNOWN;
     };
 
-    ComPtr<ID3D11Device> device = nullptr;
-    ComPtr<ID3D11DeviceContext> context = nullptr;
-    ComPtr<ID3D11VideoDevice> videoDevice = nullptr;
-    ComPtr<ID3D11VideoContext> videoContext = nullptr;
-    ComPtr<ID3D11VideoDecoder> videoDecoder = nullptr;
-    ComPtr<ID3D11Texture2D> decodeTexture = nullptr;
-    ComPtr<ID3D11Texture2D> stagingTexture = nullptr;
+    ComPtr<ID3D11Device> device = NULL;
+    ComPtr<ID3D11DeviceContext> context = NULL;
+    ComPtr<ID3D11VideoDevice> videoDevice = NULL;
+    ComPtr<ID3D11VideoContext> videoContext = NULL;
+    ComPtr<ID3D11VideoDecoder> videoDecoder = NULL;
+    ComPtr<ID3D11Texture2D> decodeTexture = NULL;
+    ComPtr<ID3D11Texture2D> stagingTexture = NULL;
     std::vector<ComPtr<ID3D11VideoDecoderOutputView>> outputViews = {};
 
     VP9FrameParser::VP9Parser parser = VP9FrameParser::VP9Parser();
@@ -87,15 +87,15 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         ComPtr<ID3D11DeviceContext> context;
 
         hr = D3D11CreateDevice(
-            nullptr,
+            NULL,
             D3D_DRIVER_TYPE_HARDWARE,
-            nullptr,
+            NULL,
             0,
-            nullptr,
+            NULL,
             0,
             D3D11_SDK_VERSION,
             &device,
-            nullptr,
+            NULL,
             &context
         );
         if (FAILED(hr))
@@ -245,7 +245,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
 
         hr = this->device->CreateTexture2D(
             &decodeTextureDesc,
-            nullptr,
+            NULL,
             &this->decodeTexture
         );
         if (FAILED(hr))
@@ -286,7 +286,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         stagingTextureDesc.MiscFlags = 0;
         hr = this->device->CreateTexture2D(
             &stagingTextureDesc,
-            nullptr,
+            NULL,
             &this->stagingTexture
         );
         if (FAILED(hr))
@@ -336,7 +336,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
             this->videoDecoder.Get(),
             this->outputViews[outputViewIndex].Get(),
             0,
-            nullptr
+            NULL
         );
         if (FAILED(hr))
         {
@@ -344,7 +344,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         }
 
         UINT pictureParametersBufferSize = 0;
-        void *pictureParametersBuffer = nullptr;
+        void *pictureParametersBuffer = NULL;
 
         hr = this->videoContext->GetDecoderBuffer(
             this->videoDecoder.Get(),
@@ -391,7 +391,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         slice.wBadSliceChopping = 0; // Don't split the frame across multiple buffers.
 
         UINT bitstreamBufferSize = 0;
-        void *bitstreamBuffer = nullptr;
+        void *bitstreamBuffer = NULL;
 
         hr = this->videoContext->GetDecoderBuffer(
             this->videoDecoder.Get(),
@@ -436,7 +436,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
         }
 
         UINT sliceBufferSize = 0;
-        void *sliceBuffer = nullptr;
+        void *sliceBuffer = NULL;
 
         hr = this->videoContext->GetDecoderBuffer(
             this->videoDecoder.Get(),
@@ -536,7 +536,7 @@ struct VP9DXVADecoder::VP9DXVAHelper::VP9DXVAHelperImpl
                 outputViewIndex,
                 1 // There is only one mipmap level (since mipmaps are disabled).
             ),
-            nullptr
+            NULL
         );
 
         D3D11_MAPPED_SUBRESOURCE mappedSubresource = {};
@@ -831,7 +831,7 @@ bool VP9DXVADecoder::VP9DXVAHelper::decodeVP9(const uint8_t *bitstream, size_t b
     return true;
 }
 
-bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
+bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(WebMImage &image, std::vector<uint8_t> &yPlane, std::vector<uint8_t> &uPlane, std::vector<uint8_t> &vPlane)
 {
     const DXGI_FORMAT format = DXGI_FORMAT_NV12; // YUV 4:2:0.
 
@@ -859,13 +859,14 @@ bool VP9DXVADecoder::VP9DXVAHelper::stageVP9(VP9DXVADecoder::Image &image, std::
     return true;
 }
 
-VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer)
+VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer) :
+    m_vp9DXVAHelper(NULL)
 {
     switch (demuxer.getVideoCodec())
     {
 #ifndef LIBSIMPLEWEBM_DISABLE_VP9
         case WebMDemuxer::VIDEO_VP9:
-            vp9DXVAHelper = VP9DXVAHelper();
+            m_vp9DXVAHelper = new VP9DXVAHelper;
             break;
 #endif
 
@@ -873,69 +874,64 @@ VP9DXVADecoder::VP9DXVADecoder(const WebMDemuxer &demuxer)
             return;
     }
 
-    if (!vp9DXVAHelper.setupVP9(demuxer.getWidth(), demuxer.getHeight()))
+    if (!m_vp9DXVAHelper->setupVP9(demuxer.getWidth(), demuxer.getHeight()))
     {
-        vp9DXVAHelper = VP9DXVAHelper();
+        delete m_vp9DXVAHelper;
+        m_vp9DXVAHelper = NULL;
         return;
     }
 }
 
 VP9DXVADecoder::~VP9DXVADecoder()
 {
-    vp9DXVAHelper = VP9DXVAHelper();
+    if (m_vp9DXVAHelper)
+    {
+        delete m_vp9DXVAHelper;
+        m_vp9DXVAHelper = NULL;
+    }
 }
 
-VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
+WebMImage::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
 {
     if (!frame.isValid())
     {
-        return IMAGE_ERROR_NO_FRAME;
+        return WebMImage::IMAGE_ERROR_NO_FRAME;
     }
 
-    if (!vp9DXVAHelper.decodeVP9(frame.buffer, frame.bufferSize))
+    if (!m_vp9DXVAHelper->decodeVP9(frame.buffer, frame.bufferSize))
     {
-        return IMAGE_ERROR_UNSUPPORTED_FRAME;
+        return WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
     }
 
-    return IMAGE_ERROR_OK;
+    return WebMImage::NO_IMAGE_ERROR;
 }
 
-VP9DXVADecoder::IMAGE_ERROR VP9DXVADecoder::getImage(Image &image)
+WebMImage::IMAGE_ERROR VP9DXVADecoder::getImage(WebMImage &image)
 {
-    if (!vp9DXVAHelper.stageVP9(image, yPlane, uPlane, vPlane))
+    if (!m_vp9DXVAHelper->stageVP9(image, yPlane, uPlane, vPlane))
     {
-        return IMAGE_ERROR_UNSUPPORTED_FRAME;
+        return WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
     }
 
-    return IMAGE_ERROR_OK;
+    return WebMImage::NO_IMAGE_ERROR;
 }
 
-static inline int ceilRshift(int val, int shift)
+bool VP9DXVADecoder::reset()
 {
-    return (val + (1 << shift) - 1) >> shift;
-}
+    if (!m_vp9DXVAHelper)
+        return false;
 
-int VP9DXVADecoder::Image::getWidth(int plane) const
-{
-    if (plane == 0 || plane == 3)
-        return w;
-
-    return ceilRshift(w, chromaShiftW);
-}
-
-int VP9DXVADecoder::Image::getHeight(int plane) const
-{
-    if (plane == 0 || plane == 3)
-        return h;
-
-    return ceilRshift(h, chromaShiftH);
-}
-
-void VP9DXVADecoder::reset()
-{
     yPlane.clear();
     uPlane.clear();
     vPlane.clear();
 
-    vp9DXVAHelper = VP9DXVAHelper();
+    if (m_vp9DXVAHelper)
+    {
+        delete m_vp9DXVAHelper;
+        m_vp9DXVAHelper = NULL;
+    }
+
+    m_vp9DXVAHelper = new VP9DXVAHelper;
+
+    return true;
 }

@@ -148,9 +148,9 @@ bool VPXDecoder::decode(const WebMFrame &frame)
 	return true;
 }
 
-VPXDecoder::IMAGE_ERROR VPXDecoder::getImage(Image &image)
+WebMImage::IMAGE_ERROR VPXDecoder::getImage(WebMImage &image)
 {
-	IMAGE_ERROR err = NO_FRAME;
+	WebMImage::IMAGE_ERROR err = WebMImage::IMAGE_ERROR_NO_FRAME;
 
 	vpx_image_t *img = NULL;
 	vpx_image_t *alphaImg = NULL;
@@ -162,7 +162,7 @@ VPXDecoder::IMAGE_ERROR VPXDecoder::getImage(Image &image)
 		alphaImg = vpx_codec_get_frame(m_alphaCtx, &m_alphaIter);
 
 	if (!img)
-		return NO_FRAME;
+		return WebMImage::IMAGE_ERROR_NO_FRAME;
 
 
 	// The alpha decoder returns an ordinary I420 image.
@@ -172,7 +172,7 @@ VPXDecoder::IMAGE_ERROR VPXDecoder::getImage(Image &image)
 	{
 		if (img->d_w != alphaImg->d_w || img->d_h != alphaImg->d_h)
 		{
-			return UNSUPPORTED_FRAME;
+			return WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
 		}
 	}
 
@@ -213,37 +213,15 @@ VPXDecoder::IMAGE_ERROR VPXDecoder::getImage(Image &image)
 				image.alphaLinesize = 0;
 			}
 
-			err = NO_ERROR;
+			err = WebMImage::NO_IMAGE_ERROR;
 		}
 	}
 	else
 	{
-		err = UNSUPPORTED_FRAME;
+		err = WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
 	}
 
 	return err;
-}
-
-static inline int ceilRshift(int val, int shift)
-{
-	return (val + (1 << shift) - 1) >> shift;
-}
-
-// 0 = Y, 1 = U, 2 = V, 3 = alpha.
-int VPXDecoder::Image::getWidth(int plane) const
-{
-	if (plane == 0 || plane == 3)
-		return w;
-
-	return ceilRshift(w, chromaShiftW);
-}
-
-int VPXDecoder::Image::getHeight(int plane) const
-{
-	if (plane == 0 || plane == 3)
-		return h;
-
-	return ceilRshift(h, chromaShiftH);
 }
 
 bool VPXDecoder::reset()

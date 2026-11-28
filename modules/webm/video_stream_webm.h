@@ -38,6 +38,7 @@ class WebMFrame;
 class GodotWebmReader;
 class WebMDemuxer;
 class VPXDecoder;
+class VP9DXVADecoder;
 class VorbisDecoder;
 class OpusDecoder;
 
@@ -49,7 +50,8 @@ class VideoStreamPlaybackWebm : public VideoStreamPlayback {
 
 	WebMDemuxer *webm = nullptr;
 	GodotWebmReader *webm_reader = nullptr;
-	VPXDecoder *video = nullptr;
+	VPXDecoder *video_vpx = nullptr;
+	VP9DXVADecoder *video_vp9_dxva = nullptr;
 	OpusDecoder *audio_opus = nullptr;
 	VorbisDecoder *audio_vorbis = nullptr;
 

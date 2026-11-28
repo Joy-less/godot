@@ -38,32 +38,6 @@ class VPXDecoder
 	void operator =(const VPXDecoder &);
 
 public:
-	class Image
-	{
-	public:
-		int getWidth(int plane) const;
-		int getHeight(int plane) const;
-
-		int w, h;
-		int cs;
-
-		int chromaShiftW, chromaShiftH;
-		int bitDepth;
-
-		unsigned char *planes[3];
-		int linesize[3];
-
-		unsigned char *alpha;
-		int alphaLinesize;
-	};
-
-	enum IMAGE_ERROR
-	{
-		UNSUPPORTED_FRAME = -1,
-		NO_ERROR,
-		NO_FRAME
-	};
-
 	VPXDecoder(const WebMDemuxer &demuxer, unsigned threads = 1);
 	~VPXDecoder();
 
@@ -79,7 +53,7 @@ public:
 
 	bool decode(const WebMFrame &frame);
 
-	IMAGE_ERROR getImage(Image &image);
+	WebMImage::IMAGE_ERROR getImage(WebMImage &image);
 
 	bool reset();
 

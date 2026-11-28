@@ -49,6 +49,7 @@
 
 // libsimplewebm
 #include <decoder/OpusDecoder.h>
+#include <decoder/hardware/VP9DXVADecoder.h>
 #include <decoder/VPXDecoder.h>
 #include <decoder/VorbisDecoder.h>
 #include <webm/status.h>
@@ -163,10 +164,18 @@ bool VideoStreamPlaybackWebm::set_file(const String &p_file) {
 		return false;
 	}
 
-	video = memnew(VPXDecoder(*webm, OS::get_singleton()->get_processor_count()));
-	if (!video->isOpen()) {
-		delete_pointers();
-		return false;
+	if (true) { // TODO: Check whether DXVA can be used
+		video_vp9_dxva = memnew(VP9DXVADecoder(*webm));
+		if (!video_vp9_dxva->isOpen()) {
+			delete_pointers();
+			return false;
+		}
+	} else {
+		video_vpx = memnew(VPXDecoder(*webm, OS::get_singleton()->get_processor_count()));
+		if (!video_vpx->isOpen()) {
+			delete_pointers();
+			return false;
+		}
 	}
 
 	switch (webm->getAudioCodec()) {
@@ -265,8 +274,11 @@ void VideoStreamPlaybackWebm::seek(double p_time) {
 		return;
 	}
 
-	if (video) {
-		video->reset();
+	if (video_vpx) {
+		video_vpx->reset();
+	}
+	if (video_vp9_dxva) {
+		video_vp9_dxva->reset();
 	}
 	if (audio_opus) {
 		audio_opus->reset();
@@ -293,7 +305,7 @@ Ref<Texture2D> VideoStreamPlaybackWebm::get_texture() const {
 }
 
 void VideoStreamPlaybackWebm::update(double p_delta) {
-	if ((!playing || paused) || !video) {
+	if ((!playing || paused) || (!video_vp9_dxva && !video_vpx)) {
 		return;
 	}
 
@@ -369,11 +381,22 @@ void VideoStreamPlaybackWebm::update(double p_delta) {
 		WebMFrame *video_frame = video_frames[0];
 
 		// It seems VPXDecoder::decode has to be executed even though we might skip this frame.
-		if (video->decode(*video_frame)) {
+		bool decode_succeeded;
+		if (video_vp9_dxva) {
+			decode_succeeded = video_vp9_dxva->decode(*video_frame);
+		} else {
+			decode_succeeded = video_vpx->decode(*video_frame);
+		}
+		if (decode_succeeded) {
 			if (should_process(*video_frame)) {
-				VPXDecoder::Image image;
-				VPXDecoder::IMAGE_ERROR err = video->getImage(image);
-				if (err == VPXDecoder::NO_ERROR && image.w == webm->getWidth() && image.h == webm->getHeight()) {
+				WebMImage image;
+				WebMImage::IMAGE_ERROR get_image_error;
+				if (video_vp9_dxva) {
+					get_image_error = video_vp9_dxva->getImage(image);
+				} else {
+					get_image_error = video_vpx->getImage(image);
+				}
+				if (get_image_error == WebMImage::NO_IMAGE_ERROR && image.w == webm->getWidth() && image.h == webm->getHeight()) {
 					bool converted = false;
 
 					if (image.chromaShiftW == 0 && image.chromaShiftH == 0 && image.cs == VPX_CS_SRGB) { // sRGB format.
@@ -506,9 +529,13 @@ void VideoStreamPlaybackWebm::delete_pointers() {
 		video_frames = nullptr;
 	}
 
-	if (video) {
-		memdelete(video);
-		video = nullptr;
+	if (video_vpx) {
+		memdelete(video_vpx);
+		video_vpx = nullptr;
+	}
+	if (video_vp9_dxva) {
+		memdelete(video_vp9_dxva);
+		video_vp9_dxva = nullptr;
 	}
 	if (audio_opus) {
 		memdelete(audio_opus);
