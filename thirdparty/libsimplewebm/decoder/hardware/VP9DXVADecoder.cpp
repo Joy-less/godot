@@ -897,19 +897,19 @@ VP9DXVADecoder::~VP9DXVADecoder()
     }
 }
 
-WebMImage::IMAGE_ERROR VP9DXVADecoder::decode(const WebMFrame &frame)
+bool VP9DXVADecoder::decode(const WebMFrame &frame)
 {
     if (!frame.isValid())
     {
-        return WebMImage::IMAGE_ERROR_NO_FRAME;
+        return false;
     }
 
     if (!m_vp9DXVAHelper->decodeVP9(frame.buffer, frame.bufferSize))
     {
-        return WebMImage::IMAGE_ERROR_UNSUPPORTED_FRAME;
+        return false;
     }
 
-    return WebMImage::NO_IMAGE_ERROR;
+    return true;
 }
 
 WebMImage::IMAGE_ERROR VP9DXVADecoder::getImage(WebMImage &image)

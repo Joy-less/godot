@@ -57,7 +57,7 @@ public:
         return (bool)m_vp9DXVAHelper;
     }
 
-    WebMImage::IMAGE_ERROR decode(const WebMFrame &frame);
+    bool decode(const WebMFrame &frame);
 
     WebMImage::IMAGE_ERROR getImage(WebMImage &image);
 
